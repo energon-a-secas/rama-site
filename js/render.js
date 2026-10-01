@@ -37,7 +37,7 @@ function showView() {
   $('overview').hidden = chart
   $('stage').setAttribute('aria-label', chart ? 'Org chart' : 'Org overview')
   for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-pressed', String(b.dataset.view === ui.view))
-  document.body.dataset.view = ui.view
+  document.body.dataset.mode = ui.view
 }
 
 function renderStagebar() {

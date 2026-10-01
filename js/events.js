@@ -70,7 +70,7 @@ function onClick(e) {
     renderChart()
     return
   }
-  const view = t.closest('[data-view]')
+  const view = t.closest('button[data-view]')
   if (view) return setView(view.dataset.view)
   const fmt = t.closest('[data-format]')
   if (fmt) return switchFormat(fmt.dataset.format)

@@ -58,7 +58,7 @@ main.app { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 }
 .stage:focus { outline: none; }
 .stage.is-panning { cursor: grabbing; user-select: none; }
-body[data-view="overview"] .stage { overflow: hidden; cursor: default; }
+body[data-mode="overview"] .stage { overflow: hidden; cursor: default; }
 
 /* ── The chart ───────────────────────────────────────────────── */
 .chart {
