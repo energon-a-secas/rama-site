@@ -6,7 +6,7 @@
 import { state, ui, person, loadText, stashCurrent, previousDoc, clearPrevious, setPicked } from './state.js'
 import { modelToText, shareLink, YAML_HEADER } from './docio.js'
 import { orgToCsv, orgToMermaid, personToVcard } from './formats.js'
-import { toFloorplanDoc, toRepartoDoc, floorplanLink, repartoLink } from './handoff.js'
+import { toFloorplanDoc, toRepartoDoc, floorplanLink, repartoLink, REPARTO_MAX } from './handoff.js'
 import { dumpYaml } from './yaml.js'
 import { slug, plural } from './core.js'
 import { showToast, copyText, downloadText } from './utils.js'
@@ -75,13 +75,15 @@ export async function handoff(kind) {
     window.open(link, '_blank', 'noopener')
     return toast(`Opened ${plural(doc.people.length, 'person', 'people')} in Floorplan`)
   }
-  const { plan, lead } = toRepartoDoc(ix, focus)
+  const { plan, lead, dropped } = toRepartoDoc(ix, focus)
+  const cut = dropped ? `. ${dropped} more did not fit: Reparto plans up to ${REPARTO_MAX} people` : ''
+  if (!plan.people.length) return toast('There is nobody to plan yet')
   if (kind === 'reparto-file') {
     downloadText(`${JSON.stringify(plan, null, 2)}\n`, `${slug(plan.title) || 'team'}-reparto.json`, 'application/json')
-    return toast('Downloaded. In Reparto, import it from the Plans menu')
+    return toast(`Downloaded. In Reparto, import it from the Plans menu${cut}`, cut ? 4200 : 2800)
   }
   window.open(repartoLink(plan), '_blank', 'noopener')
-  toast(`Opened ${person(lead).virtual ? 'the top level' : `${person(lead).name}'s team`} in Reparto, ${plural(plan.people.length, 'person', 'people')}`)
+  toast(`Opened ${person(lead).virtual ? 'the top level' : `${person(lead).name}'s team`} in Reparto, ${plural(plan.people.length, 'person', 'people')}${cut}`, cut ? 4200 : 2800)
 }
 
 export function downloadVcard(id) {
