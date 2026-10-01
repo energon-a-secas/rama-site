@@ -8,7 +8,6 @@
   --wire-violet: #a78bfa;
   --node-w: 268px;
   --compact-w: 236px;
-  --stagebar-h: 56px;
   --footer-h: 50px;
 }
 
@@ -20,13 +19,21 @@
 
 /* ── The working area ────────────────────────────────────────── */
 body { min-height: 100dvh; }
-main.app { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+/* A fixed-height main with a flexible workspace: the stage bar can wrap to any height and
+   the stage still ends exactly at the footer, so the page itself never scrolls on a desktop. */
+main#main.app {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  height: calc(100dvh - var(--header-h-app, 56px) - var(--footer-h));
+  min-height: 480px;
+}
 
 .workspace {
   position: relative;
   display: flex;
-  height: calc(100dvh - var(--header-h-app, 56px) - var(--stagebar-h) - var(--footer-h));
-  min-height: 440px;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
   border-top: 1px solid var(--border-subtle);
 }
@@ -431,7 +438,8 @@ body[data-mode="overview"] .stage { overflow: hidden; cursor: default; }
 
 /* ── Phones: one column, only the focused person's reports open ── */
 @media (max-width: 700px) {
-  :root { --stagebar-h: 92px; }
+  /* The footer wraps on a phone, so it sits below the fold and the app takes the screen. */
+  :root { --footer-h: 0px; }
   .chart { width: 100%; align-items: stretch; padding: 18px 14px 140px; }
   .chain { align-items: flex-start; gap: 12px; }
   .node--mini { max-width: 100%; }

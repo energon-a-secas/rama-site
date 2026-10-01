@@ -104,7 +104,7 @@
            child is an <svg>. The two menus stay in the header on phones (data-keep-mobile),
            because a dropdown inside the kit's ⋯ panel is clipped by that panel's scroll box. -->
       <div class="header-actions">
-        <button type="button" class="nav-link" id="searchBtn" data-action="search" data-keep-mobile aria-keyshortcuts="/ Control+K Meta+K" title="Search people (/)">
+        <button type="button" class="nav-link" id="searchBtn" data-action="search" aria-keyshortcuts="/ Control+K Meta+K" title="Search people (/)">
           <span data-icon="search"></span><span class="nav-label">Search</span><kbd class="nav-kbd">/</kbd>
         </button>
         <button type="button" class="nav-link" id="meBtn" data-action="me" data-keep-mobile aria-keyshortcuts="M" title="Go to your card (M)">
@@ -129,7 +129,9 @@
             <button type="button" role="menuitem" data-export="prompt"><span data-icon="copy"></span>Copy as a prompt for Claude</button>
           </div>
         </div>
-        <div class="menu-wrap" data-keep-mobile>
+        <!-- Hand off is desktop-only in the header: on a phone the profile panel carries the same
+             handoffs per person, and a dropdown in the kit's overflow panel would be clipped. -->
+        <div class="menu-wrap" id="handWrap">
           <button type="button" class="nav-link" id="handBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="handMenu" title="Open this org in another Neorgon tool">
             <span data-icon="send"></span><span class="nav-label">Hand off</span><span class="caret" aria-hidden="true">▾</span>
           </button>
@@ -147,6 +149,8 @@
         </button>
       </div>
 
+      <!-- On a phone the header keeps Me, Org and this slot; Search and Help fold into the
+           kit's ⋯ panel (each opens a dialog, so nothing gets clipped there). -->
       <div class="neo-auth" data-neo-auth data-keep-mobile hidden></div>
 
       <a class="header-home" href="https://neorgon.com/" title="neorgon.com" aria-label="Neorgon home">
@@ -171,10 +175,10 @@
       </div>
       <div class="stagebar__tools">
         <div class="seg" role="group" aria-label="View">
-          <button type="button" class="seg__btn" data-view="chart" aria-pressed="true"><span data-icon="network"></span>Chart</button>
-          <button type="button" class="seg__btn" data-view="overview" aria-pressed="false" aria-keyshortcuts="O"><span data-icon="orbit"></span>Overview</button>
+          <button type="button" class="seg__btn" data-view="chart" aria-pressed="true"><span data-icon="network"></span><span class="seg__label">Chart</span></button>
+          <button type="button" class="seg__btn" data-view="overview" aria-pressed="false" aria-keyshortcuts="O"><span data-icon="orbit"></span><span class="seg__label">Overview</span></button>
         </div>
-        <button type="button" class="btn btn--ghost btn--sm" data-action="top" aria-keyshortcuts="Home"><span data-icon="top"></span><span>Top</span></button>
+        <button type="button" class="btn btn--ghost btn--sm" data-action="top" aria-keyshortcuts="Home"><span data-icon="top"></span><span class="seg__label">Top</span></button>
       </div>
     </div>
     <div class="notice" id="notice" hidden></div>

@@ -7,8 +7,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2) var(--space-4);
-  min-height: var(--stagebar-h);
-  padding: 8px var(--space-6);
+  padding: 10px var(--space-6);
 }
 .stagebar__org { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px var(--space-4); min-width: 0; }
 .org-title { overflow: hidden; font-size: var(--text-lg); font-weight: 700; white-space: nowrap; text-overflow: ellipsis; }
@@ -270,12 +269,22 @@ body.is-dropping .workspace { outline: 2px dashed var(--accent); outline-offset:
     animation-name: sheet-in;
   }
   @keyframes sheet-in { from { transform: translateY(40px); opacity: 0; } }
+  /* Room for the beacon kit's bottom-left button under the last row. */
+  .panel__scroll { padding-bottom: 72px; }
   .stagebar { padding: 8px var(--space-4); }
   .panel__dl { grid-template-columns: 120px minmax(0, 1fr); }
 }
 @media (max-width: 700px) {
-  .org-title { font-size: var(--text-base); }
-  .stagebar__tools .btn span:not(.ico) { display: none; }
+  /* Title and tools on one line, the numbers on one scrolling line under them. */
+  .stagebar { display: grid; grid-template-columns: minmax(0, 1fr) auto; padding: 8px var(--space-4); }
+  .stagebar__org { display: contents; }
+  .org-title { grid-column: 1; grid-row: 1; align-self: center; font-size: var(--text-base); }
+  .stagebar__tools { grid-column: 2; grid-row: 1; }
+  .org-stats { grid-column: 1 / -1; grid-row: 2; flex-wrap: nowrap; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+  .seg__btn { padding: 0 9px; }
+  /* Icon only on a phone; the label stays in the accessibility tree. */
+  .stagebar__tools .seg__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  #handWrap { display: none; }
   .result__crumb { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
