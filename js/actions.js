@@ -65,7 +65,7 @@ export async function handoff(kind) {
     const name = `${slug(doc.title) || 'org'}-floorplan.yaml`
     if (kind === 'floorplan-file') {
       downloadText(text, name, 'text/yaml')
-      return toast('Downloaded. In Floorplan, Import it from the Examples menu')
+      return toast('Downloaded. Import it in Floorplan from the Examples menu')
     }
     const link = floorplanLink(text)
     if (!link) {
@@ -80,7 +80,7 @@ export async function handoff(kind) {
   if (!plan.people.length) return toast('There is nobody to plan yet')
   if (kind === 'reparto-file') {
     downloadText(`${JSON.stringify(plan, null, 2)}\n`, `${slug(plan.title) || 'team'}-reparto.json`, 'application/json')
-    return toast(`Downloaded. In Reparto, import it from the Plans menu${cut}`, cut ? 4200 : 2800)
+    return toast(`Downloaded. Import it in Reparto from the Plans menu${cut}`, cut ? 4200 : 2800)
   }
   window.open(repartoLink(plan), '_blank', 'noopener')
   toast(`Opened ${person(lead).virtual ? 'the top level' : `${person(lead).name}'s team`} in Reparto, ${plural(plan.people.length, 'person', 'people')}${cut}`, cut ? 4200 : 2800)
