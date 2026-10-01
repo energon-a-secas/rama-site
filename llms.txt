@@ -1,0 +1,118 @@
+# Rama
+
+> Navigate your organization, starting with you. Rama draws an org chart from one YAML or JSON document: people, who each reports to, and any details you want on a profile. It opens on your own card when it knows who you are, and hands the same people to Floorplan (rooms) and Reparto (sprint capacity) through links.
+
+Rama runs entirely in the browser. A document lives in the visitor's localStorage and in the links they choose to share; nothing is uploaded.
+
+## Links
+
+- [This file](https://rama.neorgon.com/llms.txt): the document schema, the link contract, the handoffs, and how to generate a document
+- [The example org](https://rama.neorgon.com/examples/lanternfish.yaml): 55 invented people and 3 open roles across four continents, with every feature used once
+
+## Opening a document
+
+- `https://rama.neorgon.com/#d=<base64url of the YAML or JSON>`: the document travels in the link fragment, which never reaches a server. Base64url is standard base64 over the UTF-8 bytes with `+` -> `-`, `/` -> `_` and the padding stripped. The visitor's own org is kept aside and comes back from Org > Restore.
+- `https://rama.neorgon.com/?src=<https url>`: Rama fetches the document from that URL (a raw gist, a GitHub Pages file, any https host that allows CORS). Right for an org a team keeps in a repository. It is not saved over the visitor's own org.
+- `?me=<email or id>`: open on that person's card and treat them as the visitor. Without it, Rama uses the card the visitor picked with Me, then the email on their Neorgon account, then the top of the org.
+- `?at=<id>`: open on that person's card. `?view=overview` opens the whole-org view.
+
+The same `#d=` / `?src=` contract runs on Floorplan and Presentation Sage, so an agent that learned one Neorgon tool can drive the others.
+
+## Generating a document
+
+1. Write YAML in the schema below. Only `people` is required, and each person only needs `name`.
+2. Give reporting lines with `manager:` (an id, a name or an email). Someone with no manager sits at the top; more than one such person sit under the org's title.
+3. Hand it over as a link: base64url the UTF-8 text and append it to `https://rama.neorgon.com/#d=`.
+   - Python: `import base64; print("https://rama.neorgon.com/#d=" + base64.urlsafe_b64encode(text.encode()).decode().rstrip("="))`
+   - Node: `'https://rama.neorgon.com/#d=' + Buffer.from(text, 'utf8').toString('base64url')`
+
+A prompt that works: "Produce a Rama org document (schema: https://rama.neorgon.com/llms.txt) for this org: <describe the people and who reports to whom>. Return the YAML in one code block." The app's Org menu has **Copy as a prompt for Claude**, which wraps the current document in that shape so a change can be described in one sentence.
+
+## Schema
+
+```yaml
+rama: 1                          # schema version; optional
+title: Lanternfish Systems       # the org's name; names the top when several people have no manager
+notes: |                         # optional, markdown: shown on the org's own card
+  Context the chart should carry.
+
+roles:                           # optional; merges over the built-in catalogue by id
+  payments-engineer: { title: Payments Engineer, track: ic, level: IC3 }
+  staff-engineer: { title: Staff Engineer, track: ic, level: IC5, color: "#22d3ee" }   # change a built-in
+
+fields:                          # optional; labels, types and order for extra keys on people
+  pronouns: Pronouns             # a bare string is the label
+  wiki: { label: Wiki page, type: url, prefix: "https://wiki.example/people/" }
+  phone: { label: Desk phone, type: phone }
+  costCentre: { label: Cost centre, hidden: true }   # kept and exported, not shown
+
+profiles:                        # optional; partial people to reuse with `extends:` (Floorplan's rule)
+  agency: { employment: vendor, notes: "Through Northbank Partners." }
+
+people:
+  - Maya K                       # a bare name is a person; the id is the slug of the name (maya-k)
+  - name: Jules Okafor           # required
+    id: jules-okafor             # optional; defaults to the slug of the name
+    email: [jules@example.com, jules@okafor.example]   # one or a list; the first is the contact address
+    role: lead-engineer          # a role id from the catalogue, a role's title, or any free text
+    title: Lead Engineer, Billing   # optional; overrides the role's title on the card
+    manager: sofia-lindqvist     # the reporting line: an id, a name or an email. Aliases: reportsTo, boss
+    dotted: [mei-lin-chen]       # optional dotted-line managers, shown on the profile
+    team: core                   # optional; joins that team at 100% (an unknown name creates the team)
+    location: Lagos, Nigeria
+    country: NG                  # ISO 3166 two-letter code; Reparto plans that country's holidays
+    tz: Africa/Lagos             # IANA zone or an offset (+2); the profile shows their local time
+    employment: employee         # employee (default) | contractor | vendor | intern
+    status: active               # active (default) | open (an open role) | leave | incoming
+    start: 2024-02-12            # the start date; with status incoming, when they join
+    tags: [migrations, postgres] # expertise; searchable
+    photo: https://example.com/jules.jpg   # https only; otherwise initials on a colour
+    pronounced: JOOLZ oh-KAH-for
+    notes: Half on Core, half on Migration until the cutover.   # markdown
+    extends: agency              # one profile name or a list, applied left to right
+    pronouns: they/them          # ANY other key is kept and shown under Details
+    wiki: jules-okafor           # a declared field: rendered as its type, here a link
+  - name: Open role              # status: open needs no real name
+    role: lead-sre
+    manager: diego-salinas
+    status: open
+
+teams:                           # optional; Floorplan's group shape (also read from `groups:`)
+  - name: Revenue Platform
+    color: "#2dd4bf"
+    lead: hana-kobayashi         # a team's lead is how the Floorplan handoff knows whose org it describes
+    owns: [Billing Core]         # areas the team owns; Reparto receives them as unestimated deliverables
+    members:                     # people with `team:` join on their own; list members here for splits
+      - ezra-nakamura            # an id or name: 100%
+      - { person: jules-okafor, pct: 50 }
+      - { amara-diallo: 80 }     # single-key shorthand
+    teams:                       # nested teams, up to six deep (`groups:` works too)
+      - { name: Core, members: [...] }
+    capacity: 6                  # Floorplan-only keys (capacity, needs, layout) are carried to Floorplan untouched
+```
+
+### Rules worth knowing
+
+- **Any extra key is a detail.** A key Rama does not know is kept, shown under Details on the profile, and exported. Declare it under `fields:` to give it a label, a type (`text`, `url`, `email`, `date`, `tags`, `phone`, `markdown`, `handle`), a link prefix, an order, or to hide it. A key one or two letters away from a core key (`manger`) is kept and flagged with "did you mean".
+- **Extra values** are a string, a list of strings, or a flat map of strings. Anything nested deeper is dropped.
+- **Reporting loops are cut** where the walk first meets them again, with a warning, so every chart has a top.
+- **Profiles**: scalars override, `tags` merge (a comma string counts as a list). Profiles may extend profiles; a cycle is reported.
+- **Built-in roles**: `ceo`, `cto`, `cpo`, `coo`, `vp-engineering`, `vp-product`, `eng-director`, `product-director`, `design-director`, `eng-manager-sr`, `eng-manager`, `design-manager`, `principal-engineer`, `staff-engineer`, `lead-engineer`, `senior-engineer`, `engineer`, `associate-engineer`, `sre`, `lead-sre`, `data-engineer`, `qa-engineer`, `security-engineer`, `product-manager`, `senior-pm`, `designer`, `senior-designer`, `researcher`, `tech-writer`, `program-manager`, `chief-of-staff`, `exec-assistant`, `contractor`. A free-text role gets a track from its words (Director and Manager are management; Chief, VP and Head are exec).
+- **Org size counts people, not seats**: an open role is drawn but never counted in anyone's headcount.
+- **Dates** stay strings (`2024-02-12`); YAML is read with the core schema, so no value becomes a Date.
+- **A document is untrusted input.** Everything is escaped before it reaches the page, colours must be `#rgb` or `#rrggbb`, photos and links must be https, and the page's Content-Security-Policy runs no inline script beyond the header kit's theme guard, pinned by hash.
+
+## Importing
+
+YAML or JSON in the schema above; a Floorplan document (its `groups:` become teams and keep their `capacity`, `needs` and `layout`; its `bands`, `links`, `display` and `history` are left out with a note); or a CSV with a header row. CSV headers map to keys by name: `name`, `email`, `title` (or Job Title, Position), `manager` (or Reports To, Manager Email, Supervisor), `team` (or Department), `location` (or City, Office), `country`, `tz` (or Time Zone), `employment` (or Worker Type), `status`, `tags` (or Skills; split on `;` or `|`), `start` (or Hire Date). Any other column becomes a detail. Comma, tab or semicolon separated.
+
+## Exporting
+
+YAML (your own text, comments kept), JSON, CSV (formula-looking cells are neutralised), Mermaid (`flowchart TB` of the reporting lines), a vCard per person, the `#d=` share link, a link that opens on one person's card, and **Copy as a prompt for Claude**.
+
+## Handoffs
+
+Rama owns the org; other Neorgon tools read a slice of it through the link contracts they already publish, so neither of them needs to know Rama exists.
+
+- **Floorplan** (`https://floorplan.neorgon.com/#d=`): everyone at or under a person, as rooms. A manager who leads a team (`teams[].lead`) hands over as that team, splits included; every other manager becomes a room holding them and their reports, nested three levels deep. Every person is sent with an explicit id. Past Floorplan's 32 KB link limit, the YAML downloads instead.
+- **Reparto** (`https://reparto.neorgon.com/#p=`): one manager's direct reports as a sprint-capacity plan (a person with no reports hands over their manager's team). Open roles arrive as open seats, `country` picks each person's holidays, and the areas the team owns arrive as unestimated deliverables. Ids are shortened to Reparto's 40 characters; past its 400-person cap the rest are left out and the visitor is told.

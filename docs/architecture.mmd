@@ -1,0 +1,47 @@
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#0f172a"
+    primaryTextColor: "#e2e8f0"
+    primaryBorderColor: "#0063e5"
+    lineColor: "#38bdf8"
+    secondaryColor: "#1e293b"
+    tertiaryColor: "#1e293b"
+    clusterBkg: "#f0f7ff"
+    clusterBorder: "#bfdbfe"
+    edgeLabelBackground: "#e8f0ff"
+    mainBkg: "#0f172a"
+    nodeBorder: "#0063e5"
+    titleColor: "#1e1b4b"
+    fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif"
+    fontSize: "13px"
+---
+flowchart TB
+    User([Visitor]) --> HTML["index.html\nShell + CSP"]
+    Sources[("#d= link · ?src= URL\nfile · paste · example")] --> docio
+
+    subgraph Core["Pure core (Node-tested)"]
+        docio["docio.js\nreadDoc: YAML, JSON, CSV"] --> schema["schema.js + teams.js + roles.js\nnormalizeOrg: the org document"]
+        schema --> tree["tree.js\nindexOrg, focusView, search"]
+        tree --> handoff["handoff.js\nFloorplan + Reparto documents"]
+        schema --> formats["formats.js\nCSV, Mermaid, vCard"]
+    end
+
+    subgraph App["ES Modules"]
+        HTML --> app["app.js + boot.js\nfirst document, first card"]
+        app --> state["state.js + me.js\ndocument text, who you are"]
+        state --> nav["nav.js\ngo(id): view transitions, history"]
+        nav --> chart["render-chart.js + wires.js\nchain, lead, row, columns"]
+        nav --> overview["overview.js\nrings and division wedges"]
+        nav --> panel["panel.js\nprofile and details"]
+        events["events.js + search.js + editor.js + actions.js"] --> nav
+    end
+
+    state <-->|"rama-site:doc, :preferences, :previous"| Storage[("localStorage")]
+    state --> docio
+    tree --> chart
+    tree --> overview
+    Auth["Neorgon Auth Kit\naccount email"] -.->|"match people[].email"| state
+    handoff -->|"#d= YAML"| Floorplan["floorplan.neorgon.com\nrooms"]
+    handoff -->|"#p= JSON"| Reparto["reparto.neorgon.com\nsprint capacity"]
