@@ -101,6 +101,7 @@ function build(ix, svg, key) {
   // k turns screen pixels into drawing units, so dots and labels keep their size in any window.
   const k = svg.clientWidth && svg.clientHeight ? Math.max(vb[2] / svg.clientWidth, vb[3] / svg.clientHeight) : 1
   svg.style.setProperty('--u', k.toFixed(3))
+  svg.classList.toggle('is-large', ix.model.people.length > 400)
   built.k = k
   const rings = Array.from({ length: maxDepth }, (_, i) => `<circle class="ov-ring" r="${radius(i + 1)}"/>`).join('')
   // A faint wedge per division, named at its rim: the org's shape before any dot is read.

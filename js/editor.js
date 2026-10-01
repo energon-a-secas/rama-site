@@ -23,7 +23,12 @@ export function openEditor({ opener, personId = null, text = null } = {}) {
   validate()
   openDialog($('editorDialog'), opener)
   if (personId) selectPerson(personId)
-  else area.focus()
+  else {
+    // Open at the top: setting the value leaves the caret, and the scroll, at the end.
+    area.setSelectionRange(0, 0)
+    area.scrollTop = 0
+    area.focus({ preventScroll: true })
+  }
 }
 
 function paintFormat() {
@@ -52,7 +57,9 @@ const validate = debounce(() => {
     box.innerHTML = `<p class="issue issue--error">${icon('alert', { size: 14 })}${escHtml(issues[0]?.msg || 'Could not read the document')}</p>`
     return
   }
-  const head = `<p class="issue issue--ok">${icon('check', { size: 14 })}${escHtml(plural(model.people.length, 'person', 'people'))}${model.teams.length ? `, ${escHtml(plural(model.teams.length, 'team'))}` : ''}${issues.length ? `, ${escHtml(plural(issues.length, 'thing'))} to look at` : ', nothing to fix'}</p>`
+  const open = model.people.filter((p) => p.status === 'open').length
+  const counts = [plural(model.people.length - open, 'person', 'people'), open && plural(open, 'open role'), model.teams.length && plural(model.teams.length, 'team')].filter(Boolean).join(', ')
+  const head = `<p class="issue issue--ok">${icon('check', { size: 14 })}${escHtml(counts)}${issues.length ? `, ${escHtml(plural(issues.length, 'thing'))} to look at` : ', nothing to fix'}</p>`
   box.innerHTML = head + issues.slice(0, 40).map((i) => `<p class="issue issue--${i.level}">${icon('alert', { size: 14 })}${escHtml(i.msg)}</p>`).join('') +
     (issues.length > 40 ? `<p class="issue">${issues.length - 40} more</p>` : '')
 }, 250)

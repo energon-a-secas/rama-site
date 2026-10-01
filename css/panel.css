@@ -109,8 +109,7 @@
   flex: none;
   width: 392px;
   border-left: 1px solid var(--border);
-  background: linear-gradient(180deg, rgb(10 14 34 / 88%), rgb(4 7 20 / 94%));
-  backdrop-filter: blur(16px);
+  background: linear-gradient(180deg, rgb(10 14 34), rgb(4 7 20));
   animation: panel-in 320ms var(--ease-out) both;
 }
 @keyframes panel-in { from { opacity: 0; transform: translateX(24px); } }
@@ -244,7 +243,7 @@
 .help p { margin-bottom: var(--space-4); color: var(--text-secondary); }
 .help strong { color: var(--text-primary); }
 .help a { color: var(--accent-bright); }
-.help code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); }
+.help code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); white-space: nowrap; }
 .keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 18px; margin-bottom: var(--space-6); }
 .keys div { display: flex; align-items: center; gap: 10px; }
 .keys dt { display: flex; gap: 4px; min-width: 64px; }
@@ -267,6 +266,9 @@ body.is-dropping .workspace { outline: 2px dashed var(--accent); outline-offset:
     border-radius: 18px 18px 0 0;
     box-shadow: 0 -24px 60px -20px rgb(0 0 0 / 80%);
     animation-name: sheet-in;
+    /* Over the chart on a phone, so the sheet earns a blur here and nowhere else. */
+    background: linear-gradient(180deg, rgb(10 14 34 / 90%), rgb(4 7 20 / 96%));
+    backdrop-filter: blur(16px);
   }
   @keyframes sheet-in { from { transform: translateY(40px); opacity: 0; } }
   /* Room for the beacon kit's bottom-left button under the last row. */

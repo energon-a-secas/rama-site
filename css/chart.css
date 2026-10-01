@@ -356,11 +356,10 @@ body[data-mode="overview"] .stage { overflow: hidden; cursor: default; }
   padding: 6px 10px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: rgb(4 7 20 / 72%);
+  background: rgb(4 7 20 / 88%);
   color: var(--text-secondary);
   font-size: 0.75rem;
   list-style: none;
-  backdrop-filter: blur(8px);
 }
 .legend li { display: inline-flex; align-items: center; gap: 6px; }
 .legend__n { color: var(--text-muted); }
@@ -390,6 +389,8 @@ body[data-mode="overview"] .stage { overflow: hidden; cursor: default; }
 .ov-dot.is-path { stroke: var(--accent-bright); stroke-width: 2.5; animation: none; }
 .ov-dot.is-focus { stroke: #fff; stroke-width: 3; animation: none; filter: drop-shadow(0 0 8px var(--c)); }
 .ov-dot.is-me { animation: me-pulse 2.2s ease-out infinite; }
+/* A big org holds still: thousands of SVG opacity loops run on the main thread. */
+.overview__svg.is-large .ov-dot { animation: none; }
 @keyframes twinkle { 50% { opacity: 0.66; } }
 @keyframes me-pulse { 0%, 100% { transform: scale(1); } 30% { transform: scale(1.35); } }
 .ov-path {
