@@ -174,10 +174,13 @@ export function paintFocus() {
 
 function renderLegend() {
   const ix = state.ix
-  const counts = new Map()
+  // Label and colour stay separate fields: joining them into one string let a name with "|" smuggle markup into a style attribute.
+  const rows = new Map()
   const add = (label, color) => {
-    const k = `${label}|${color}`
-    counts.set(k, (counts.get(k) || 0) + 1)
+    const k = JSON.stringify([label, color])
+    const row = rows.get(k) || { label, color, n: 0 }
+    row.n++
+    rows.set(k, row)
   }
   for (const p of ix.model.people) {
     const by = ui.colorBy
@@ -192,13 +195,11 @@ function renderLegend() {
       add(t ? t.name : 'no team', colorOf(p))
     }
   }
-  const rows = [...counts].sort((a, b) => b[1] - a[1])
-  const shown = rows.slice(0, 9)
-  const rest = rows.slice(9).reduce((n, [, c]) => n + c, 0)
-  $('legend').innerHTML = shown.map(([k, n]) => {
-    const [label, color] = k.split('|')
-    return `<li><span class="swatch" style="--c:${color}"></span>${escHtml(label)} <span class="legend__n">${n}</span></li>`
-  }).join('') + (rest ? `<li class="legend__rest">${plural(rest, 'more')}</li>` : '')
+  const sorted = [...rows.values()].sort((a, b) => b.n - a.n)
+  const shown = sorted.slice(0, 9)
+  const rest = sorted.slice(9).reduce((n, r) => n + r.n, 0)
+  $('legend').innerHTML = shown.map((r) => `<li><span class="swatch" style="--c:${escHtml(r.color)}"></span>${escHtml(r.label)} <span class="legend__n">${r.n}</span></li>`).join('') +
+    (rest ? `<li class="legend__rest">${plural(rest, 'more')}</li>` : '')
 }
 
 // ── Pan and zoom ─────────────────────────────────────────────

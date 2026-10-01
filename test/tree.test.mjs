@@ -162,7 +162,7 @@ describe('chain, parentOf, branchOf on the sample', () => {
 })
 
 describe('depth and org size', () => {
-  test('depth counts steps from the top; size counts everyone below', { skip: yamlSkip }, () => {
+  test('depth counts steps from the top; size counts the people below, never open seats', { skip: yamlSkip }, () => {
     const ix = sample()
     assert.equal(ix.depth.get('noor-haddad'), 0)
     assert.equal(ix.depth.get('tomas-aguilar'), 1)
@@ -172,9 +172,12 @@ describe('depth and org size', () => {
     assert.equal(ix.size.get('ezra-nakamura'), 0)
     for (const p of ix.model.people) {
       assert.equal(ix.depth.get(p.id), ix.chain(p.id).length - 1, `depth of ${p.id}`)
-      const below = ix.kids(p.id).reduce((n, c) => n + 1 + ix.size.get(c), 0)
+      const below = ix.kids(p.id).reduce((n, c) => n + (ix.byId.get(c).status === 'open' ? 0 : 1) + ix.size.get(c), 0)
       assert.equal(ix.size.get(p.id), below, `size of ${p.id}`)
     }
+    // The top's org plus the top is the stage bar's headcount: the three vacancies are seats, not people.
+    assert.equal(ix.size.get(ix.top) + 1, ix.stats.people)
+    assert.equal(ix.size.get('rafael-costa'), 1, 'Aisha, and not the open security role')
   })
 
   test('a 5000-deep chain indexes without overflowing the stack', () => {

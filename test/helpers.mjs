@@ -18,6 +18,7 @@ export const yamlSkip = hasYaml ? false : 'js-yaml is not installed at the monor
 
 /** The same call yaml.js makes in the page: CORE_SCHEMA, so dates stay strings. */
 export const parseYaml = (text) => yaml.load(text, { schema: yaml.CORE_SCHEMA })
+/** The same call yaml.js makes in the page: the DEFAULT schema, so date-like strings come out quoted. */
 export const dumpYaml = (doc) => yaml.dump(doc, { lineWidth: 100, noRefs: true })
 
 export const readText = (rel) => readFileSync(join(ROOT, rel), 'utf8')

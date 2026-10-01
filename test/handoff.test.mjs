@@ -176,7 +176,7 @@ describe('toFloorplanDoc with teams, through Floorplan', () => {
       const name = ix.byId.get(head).name
       assert.equal(doc.title, `${name}'s org`)
       assert.match(doc.notes, new RegExp(`at or under ${name}`))
-      assert.match(doc.notes, /Teams became groups/)
+      assert.match(doc.notes, /A manager who leads a team became that team/)
       const scope = scopeOf(ix, head)
       const fp = throughFloorplan(doc)
       assertPeople(fp, ix, scope)
@@ -289,7 +289,7 @@ describe('toFloorplanDoc without teams: reporting lines become groups', () => {
     const ix = sample()
     const doc = toFloorplanDoc(ix, 'elena-petrova', TODAY)
     assert.ok(doc.groups.some((g) => g.name === "Elena Petrova's team"), 'no team is in scope, so lines became groups')
-    assert.doesNotMatch(doc.notes, /Teams became groups/)
+    assert.doesNotMatch(doc.notes, /A manager who leads a team became that team/)
     assert.match(doc.notes, /Each manager became a group with their reports/)
   })
 
@@ -427,15 +427,19 @@ describe('toRepartoDoc, through Reparto', () => {
     assert.deepEqual(rpState.normalizeDoc(plan).people.map((p) => p.id), plan.people.map((p) => p.id))
   })
 
-  test('a long id (Rama allows 48 characters) keeps its id in Reparto', { skip: rpSkip }, () => {
+  test('long ids are shortened to Reparto\'s 40 characters, stay unique, and Reparto keeps them', { skip: rpSkip }, () => {
     const ix = org({ title: 'Long', people: [
       { name: 'Boss' },
       { name: 'Maria Fernanda de los Angeles Gutierrez Villanueva', manager: 'boss' },
+      { name: 'Maria Fernanda de los Angeles Gutierrez Villanueva Junior', manager: 'boss' },
       { name: 'Open role', status: 'open', role: 'Staff Site Reliability Engineer, Payments', manager: 'boss' },
     ] })
+    assert.ok(ix.model.people.some((p) => p.id.length > 40), 'the fixture has a Rama id over 40 characters')
     const { plan } = toRepartoDoc(ix, 'boss')
-    assert.ok(plan.people.some((p) => p.id.length > 40), 'the fixture has an id over 40 characters')
-    assert.deepEqual(rpState.normalizeDoc(plan).people.map((p) => p.id), plan.people.map((p) => p.id))
+    const ids = plan.people.map((p) => p.id)
+    assert.ok(ids.every((id) => id.length <= 40 && /^[A-Za-z0-9_-]+$/.test(id) && !id.endsWith('-')), ids.join(' '))
+    assert.equal(new Set(ids).size, ids.length)
+    assert.deepEqual(rpState.normalizeDoc(plan).people.map((p) => p.id), ids)
   })
 })
 

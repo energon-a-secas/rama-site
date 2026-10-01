@@ -7,7 +7,7 @@ export function slug(s) {
   return String(s ?? '')
     .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-    .slice(0, 48)
+    .slice(0, 48).replace(/-+$/, '')
 }
 
 /** #rgb or #rrggbb, else the fallback. Every colour that reaches a style attribute passes here. */
@@ -15,16 +15,26 @@ export function safeColor(v, fallback = '') {
   return typeof v === 'string' && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v.trim()) ? v.trim().toLowerCase() : fallback
 }
 
-/** A short plain string, trimmed and capped. Numbers and booleans become strings. */
+/**
+ * A short plain string, trimmed and capped. Numbers and booleans become strings.
+ * CRLF and CR become LF and the other control characters go, so no value can
+ * start a line in a vCard or a CSV; a cut never leaves half a surrogate pair.
+ */
 export function str(v, max = 200) {
   if (v == null) return ''
-  if (typeof v === 'number' || typeof v === 'boolean') return String(v)
-  if (typeof v !== 'string') return ''
-  return v.trim().slice(0, max)
+  let s
+  if (typeof v === 'number' || typeof v === 'boolean') s = String(v)
+  else if (typeof v === 'string') s = v
+  else return ''
+  s = s.replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim()
+  if (s.length > max) s = s.slice(0, max)
+  if (/[\ud800-\udbff]$/.test(s)) s = s.slice(0, -1)
+  return typeof s.toWellFormed === 'function' ? s.toWellFormed() : s
 }
 
 /** Only https (and mailto/tel where asked). Anything else is dropped, never rewritten. */
 export function safeUrl(v, { mailto = false, tel = false } = {}) {
+  if (typeof v === 'string' && v.trim().length > 2000) return ''
   const s = str(v, 2000)
   if (!s) return ''
   if (/^https:\/\/[^\s"'<>]+$/i.test(s)) return s
@@ -89,6 +99,8 @@ export function fieldHref(def, value) {
   const type = def?.type || 'text'
   if (type === 'email') return isEmail(value) ? `mailto:${value}` : ''
   if (type === 'phone') return /^[+\d\s().-]{3,40}$/.test(value) ? `tel:${value.replace(/[^\d+]/g, '')}` : ''
-  if (def?.prefix) return safeUrl(def.prefix + encodeURIComponent(value))
+  if (def?.prefix) {
+    try { return safeUrl(def.prefix + encodeURIComponent(value)) } catch { return '' }
+  }
   return safeUrl(value)
 }

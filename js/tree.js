@@ -35,16 +35,23 @@ export function indexOrg(model) {
     return p.manager && byId.has(p.manager) ? p.manager : (virtual ? ORG_ROOT : null)
   }
 
-  // Depth and org size, iteratively: a 5000-deep chain would overflow a recursive walk.
+  // Depth, division and org size, iteratively: a 5000-deep chain would overflow a recursive walk.
   const depth = new Map([[top, 0]])
+  const branch = new Map([[top, top]])
   const order = [top]
   for (let i = 0; i < order.length; i++) {
-    for (const c of children.get(order[i]) || []) { depth.set(c, depth.get(order[i]) + 1); order.push(c) }
+    const at = order[i]
+    for (const c of children.get(at) || []) {
+      depth.set(c, depth.get(at) + 1)
+      branch.set(c, at === top ? c : branch.get(at))
+      order.push(c)
+    }
   }
+  // Org size counts people, not seats: an open role is in the chart but not in anyone's headcount.
   const size = new Map()
   for (let i = order.length - 1; i >= 0; i--) {
     const id = order[i]
-    size.set(id, (children.get(id) || []).reduce((n, c) => n + 1 + size.get(c), 0))
+    size.set(id, (children.get(id) || []).reduce((n, c) => n + (byId.get(c).status === 'open' ? 0 : 1) + size.get(c), 0))
   }
 
   const teamsOf = new Map()
@@ -66,10 +73,7 @@ export function indexOrg(model) {
       return out
     },
     /** The first person below `top` on the way to id: the division they sit in. */
-    branchOf(id) {
-      const c = ix.chain(id)
-      return c.length > 1 ? c[1] : c[0]
-    },
+    branchOf: (id) => branch.get(id) ?? id,
     has: (id) => byId.has(id),
   }
   ix.stats = orgStats(model, ix)
@@ -86,7 +90,7 @@ function orgStats(model, ix) {
   return {
     people: model.people.filter((p) => p.status !== 'open').length,
     open: model.people.filter((p) => p.status === 'open').length,
-    external: model.people.filter((p) => isExternal(p)).length,
+    external: model.people.filter((p) => isExternal(p) && p.status !== 'open').length,
     managers: managers.length,
     medianSpan: median,
     widestSpan: spans.length ? spans[spans.length - 1] : 0,
@@ -98,24 +102,28 @@ function orgStats(model, ix) {
 
 export const isExternal = (p) => p.employment === 'contractor' || p.employment === 'vendor'
 
+/** Lowercase, accents folded, runs of whitespace (including NBSP) as one space: "José  Pérez" finds "jose perez". */
+export const fold = (s) => String(s ?? '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+
 /** Search people by name, title, team, tags, location or email; best matches first. */
 export function searchPeople(ix, query, limit = 12) {
-  const q = query.trim().toLowerCase()
+  const q = fold(query)
   if (!q) return []
-  const qs = slug(q)
+  // The slug match is for "data eng" finding "data-engineering", so only a query that loses nothing to slugging uses it ("c#" must not find "C++").
+  const qs = /^[a-z0-9 -]+$/.test(q) ? slug(q) : ''
   const scored = []
   for (const p of ix.model.people) {
-    const name = p.name.toLowerCase()
+    const name = fold(p.name)
     let score = 0
     if (name === q) score = 100
     else if (name.startsWith(q)) score = 80
-    else if (name.split(/\s+/).some((w) => w.startsWith(q))) score = 70
+    else if (name.split(' ').some((w) => w.startsWith(q))) score = 70
     else if (name.includes(q)) score = 60
     else if (p.email.some((e) => e.startsWith(q))) score = 55
-    else if (p.title.toLowerCase().includes(q)) score = 40
-    else if ((ix.teamsOf.get(p.id) || []).some(({ team }) => ix.teamById.get(team)?.name.toLowerCase().includes(q))) score = 35
-    else if (p.tags.some((t) => t.toLowerCase().includes(q) || slug(t) === qs)) score = 30
-    else if (p.location.toLowerCase().includes(q) || p.country.toLowerCase() === q) score = 20
+    else if (fold(p.title).includes(q)) score = 40
+    else if ((ix.teamsOf.get(p.id) || []).some(({ team }) => fold(ix.teamById.get(team)?.name).includes(q))) score = 35
+    else if (p.tags.some((t) => fold(t).includes(q) || (qs && slug(t) === qs))) score = 30
+    else if (fold(p.location).includes(q) || p.country.toLowerCase() === q) score = 20
     if (score) scored.push({ id: p.id, score: score - Math.min(10, ix.depth.get(p.id) || 0) * 0.1 })
   }
   return scored.sort((a, b) => b.score - a.score).slice(0, limit).map((s) => s.id)

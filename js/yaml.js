@@ -10,6 +10,11 @@ const lib = () => {
 
 export const parseYaml = (text) => lib().load(text, { schema: lib().CORE_SCHEMA, json: true })
 
-export const dumpYaml = (doc) => lib().dump(doc, { lineWidth: 100, noRefs: true, schema: lib().CORE_SCHEMA })
+/**
+ * Dumped with the DEFAULT schema on purpose: it quotes date-like strings
+ * ("2026-10-01"), so a reader that parses with timestamps (Floorplan does)
+ * still gets the string back. Reading here uses CORE_SCHEMA either way.
+ */
+export const dumpYaml = (doc) => lib().dump(doc, { lineWidth: 100, noRefs: true })
 
 export const yamlReady = () => !!window.jsyaml

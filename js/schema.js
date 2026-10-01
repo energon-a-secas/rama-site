@@ -6,7 +6,7 @@
 // change the other. Pure: no DOM, Node-tested in test/schema.test.mjs.
 
 import { DEFAULT_ROLES, TRACKS, TRACK_COLORS, guessTrack } from './roles.js'
-import { slug, safeColor, str, safeUrl, isEmail, editDistance } from './core.js'
+import { slug, safeColor, str, safeUrl, isEmail, editDistance, hash } from './core.js'
 import { normalizeTeams, teamsToDoc } from './teams.js'
 
 export const SCHEMA_VERSION = 1
@@ -73,7 +73,9 @@ export function normalizeOrg(input) {
   list = list || []
   if (list.length > MAX_PEOPLE) ctx.warn(`Only the first ${MAX_PEOPLE} people are read`)
   const taken = new Set()
+  const nextSuffix = new Map() // base id -> the next suffix to try, so many duplicates stay linear
   const pending = []
+  ctx.profileCache = new Map()
   list.slice(0, MAX_PEOPLE).forEach((entry, i) => {
     const e = typeof entry === 'string' || typeof entry === 'number' ? { name: String(entry) } : entry
     if (!e || typeof e !== 'object' || Array.isArray(e)) { ctx.error(`people[${i}] is not a person`); return }
@@ -82,10 +84,12 @@ export function normalizeOrg(input) {
     if (!person) return
     let id = person.id
     if (taken.has(id)) {
-      let n = 2
-      while (taken.has(`${id}-${n}`)) n++
-      ctx.warn(`Two people share the id "${id}"; the second is "${id}-${n}"`)
-      id = `${id}-${n}`
+      const base = id.slice(0, 42).replace(/-+$/, '')
+      let n = nextSuffix.get(base) || 2
+      while (taken.has(`${base}-${n}`)) n++
+      nextSuffix.set(base, n + 1)
+      ctx.warn(`Two people share the id "${id}"; the second is "${base}-${n}"`)
+      id = `${base}-${n}`
       person.id = id
     }
     taken.add(id)
@@ -145,27 +149,39 @@ function normalizeFields(raw, ctx) {
   return out
 }
 
+/**
+ * A person's profiles, resolved left to right. Each profile is resolved once per
+ * document and cached: a diamond of profiles that extend the same parents was
+ * exponential without it, and a 30-line document could hang the tab.
+ */
 function applyProfiles(entry, profiles, ctx, who) {
-  const names = [].concat(entry.extends ?? []).map((n) => str(n, 60)).filter(Boolean)
+  const names = [].concat(entry.extends ?? []).slice(0, 20).map((n) => str(n, 60)).filter(Boolean)
   if (!names.length) return entry
+  const cache = ctx.profileCache || (ctx.profileCache = new Map())
   const resolve = (name, stack) => {
+    if (cache.has(name)) return cache.get(name)
     if (stack.includes(name)) { ctx.warn(`Profile cycle: ${[...stack, name].join(' > ')}`); return {} }
     const p = Object.hasOwn(profiles, name) ? profiles[name] : null
     if (!p || typeof p !== 'object' || Array.isArray(p)) { ctx.warn(`${who} extends unknown profile "${name}"`); return {} }
     let merged = {}
-    for (const parent of [].concat(p.extends ?? [])) merged = mergeProfile(merged, resolve(str(parent, 60), [...stack, name]))
-    return mergeProfile(merged, p)
+    for (const parent of [].concat(p.extends ?? []).slice(0, 20)) merged = mergeProfile(merged, resolve(str(parent, 60), [...stack, name]))
+    merged = mergeProfile(merged, p)
+    cache.set(name, merged)
+    return merged
   }
   let base = {}
   for (const n of names) base = mergeProfile(base, resolve(n, []))
   return mergeProfile(base, entry)
 }
 
+const asTags = (v) => (Array.isArray(v) ? v : typeof v === 'string' ? v.split(/[,;|]/).map((t) => t.trim()).filter(Boolean) : null)
+
 function mergeProfile(a, b) {
   const out = { ...a }
   for (const [k, v] of ownEntries(b)) {
     if (k === 'extends') continue
-    out[k] = k === 'tags' && Array.isArray(out.tags) && Array.isArray(v) ? [...new Set([...out.tags, ...v])] : v
+    const both = k === 'tags' && asTags(out.tags) && asTags(v)
+    out[k] = both ? [...new Set([...asTags(out.tags), ...asTags(v)])] : v
   }
   return out
 }
@@ -220,14 +236,16 @@ function buildPerson(e, i, model, ctx) {
   let name = str(e.name, 120)
   if (!name && status === 'open') name = 'Open role'
   if (!name) { ctx.error(`people[${i}] has no name`); return null }
-  const id = slug(e.id) || (status === 'open' ? slug(`open-${title || 'role'}-${i + 1}`) : slug(name)) || `person-${i + 1}`
+  // A name with no Latin letters still gets a stable id from its own text, never its position.
+  const id = slug(e.id) || (status === 'open' ? slug(`open-${title || 'role'}-${i + 1}`) : slug(name)) || `p-${hash(name).toString(36)}`
 
   const email = [...new Set([].concat(e.email ?? []).map((x) => str(x, 254).toLowerCase()).filter(Boolean))]
   const goodEmail = email.filter(isEmail)
   if (goodEmail.length < email.length) ctx.warn(`${who}: "${email.find((x) => !isEmail(x))}" is not an email address`)
 
-  let country = str(e.country, 2).toUpperCase()
-  if (e.country != null && !/^[A-Z]{2}$/.test(country)) { ctx.warn(`${who}: country "${str(e.country, 40)}" should be a two-letter code (CL, US, DE)`); country = '' }
+  // The whole value is checked before anything is cut: "Chile" must not become CH.
+  let country = str(e.country, 40).toUpperCase()
+  if (e.country != null && e.country !== '' && !/^[A-Z]{2}$/.test(country)) { ctx.warn(`${who}: country "${str(e.country, 40)}" should be a two-letter code (CL, US, DE)`); country = '' }
   let tz = str(e.tz, 60)
   if (tz && !/^([A-Za-z_]+(\/[A-Za-z0-9_+-]+)+|UTC|[+-]\d{1,2}(:\d{2})?)$/.test(tz)) { ctx.warn(`${who}: tz "${tz}" is not an IANA zone (America/Santiago) or an offset (+2)`); tz = '' }
   const photo = safeUrl(e.photo)
@@ -302,7 +320,8 @@ export function orgToDoc(model) {
     doc.roles = Object.fromEntries(model.declaredRoles.map((id) => {
       const r = model.roles[id]
       const out = { title: r.title, track: r.track }
-      if (r.level) out.level = r.level
+      // A level cleared on purpose ('') has to survive, or a built-in's level comes back on re-import.
+      if (r.level || r.level !== (DEFAULT_ROLES[id]?.level ?? '')) out.level = r.level
       if (r.color) out.color = r.color
       if (r.notes) out.notes = r.notes
       return [id, out]
@@ -330,7 +349,7 @@ function personToDoc(p, model) {
   if (p.role) {
     out.role = p.role
     if (p.title && p.title !== model.roles[p.role]?.title) out.title = p.title
-  } else if (p.title) out.role = p.title
+  } else if (p.title) out.title = p.title // as title, never role: a role is matched against the catalogue on the way back in
   if (p.manager) out.manager = p.manager
   if (p.dotted.length) out.dotted = [...p.dotted]
   if (p.team) out.team = p.team

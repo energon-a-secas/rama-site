@@ -397,7 +397,9 @@ describe('teams', () => {
       ['ada-lovelace', 100, false], ['b', 100, false], ['c', 1, false], ['d', 1, false], ['e', 33, false], ['f', 100, false], ['g', 40, false],
     ])
     assert.ok(hasWarn(issues, /member "ghost" is not in people/) && hasWarn(issues, /member "nobody" is not in people/))
-    assert.equal(warns(issues).length, 3)
+    // An unreadable share counts as 100 and says so.
+    assert.ok(hasWarn(issues, /share "lots" is not a number/))
+    assert.equal(warns(issues).length, 4)
   })
 
   test('a member with an empty pct counts as 100, like one with no pct', () => {

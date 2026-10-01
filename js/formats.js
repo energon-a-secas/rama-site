@@ -13,8 +13,7 @@ export function parseCsv(text) {
   let field = ''
   let quoted = false
   const src = String(text).replace(/^\uFEFF/, '')
-  const first = src.slice(0, src.search(/\r?\n|$/))
-  const delim = first.includes(',') ? ',' : first.includes('\t') ? '\t' : first.includes(';') ? ';' : ','
+  const delim = sniffDelimiter(src)
   for (let i = 0; i < src.length; i++) {
     const c = src[i]
     if (quoted) {
@@ -35,6 +34,19 @@ export function parseCsv(text) {
   return rows
 }
 
+/** The separator the header row uses most, counting only outside quotes. Ties and none go to a comma. */
+function sniffDelimiter(src) {
+  const counts = { ',': 0, '\t': 0, ';': 0 }
+  let quoted = false
+  for (const c of src) {
+    if (c === '"') quoted = !quoted
+    else if (!quoted && (c === '\n' || c === '\r')) break
+    else if (!quoted && c in counts) counts[c]++
+  }
+  const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]
+  return best[1] > counts[','] ? best[0] : ','
+}
+
 const COLUMN = {
   name: 'name', 'full name': 'name', employee: 'name', 'employee name': 'name',
   id: 'id', 'employee id': 'id', username: 'id',
@@ -50,15 +62,21 @@ const COLUMN = {
   photo: 'photo', pronounced: 'pronounced', notes: 'notes', dotted: 'dotted',
 }
 
-const camel = (h) => h.trim().replace(/[^A-Za-z0-9]+(.)?/g, (_, ch) => (ch ? ch.toUpperCase() : '')).replace(/^./, (c) => c.toLowerCase()).slice(0, 60)
+/** An unknown header as a detail key: "Cost Centre" is costCentre, "Teléfono" is telefono, and a header with no Latin letters keeps its own text. */
+const camel = (h, i) => {
+  const plain = h.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').trim()
+  const key = plain.replace(/[^A-Za-z0-9]+(.)?/g, (_, ch) => (ch ? ch.toUpperCase() : '')).replace(/^./, (c) => c.toLowerCase()).slice(0, 60)
+  return key || h.trim().slice(0, 60) || `column${i + 1}`
+}
 
 /** A CSV with a header row as a raw Rama document. Unknown columns become details. */
 export function csvToDoc(text, title = 'Imported org') {
   const rows = parseCsv(text)
   if (rows.length < 2) throw new Error('A CSV needs a header row and at least one person')
-  const header = rows[0].map((h) => {
-    const k = h.trim().toLowerCase()
-    return Object.hasOwn(COLUMN, k) ? COLUMN[k] : camel(h)
+  const header = rows[0].map((h, i) => {
+    // manager_name and manager-name read like "manager name": Rama's own export comes back in clean.
+    const k = h.trim().toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ')
+    return Object.hasOwn(COLUMN, k) ? COLUMN[k] : camel(h, i)
   })
   if (!header.includes('name')) throw new Error('The CSV header has no name column')
   const people = rows.slice(1).map((r) => {
@@ -81,14 +99,16 @@ const cell = (v) => {
 }
 
 export function orgToCsv(model) {
-  const extras = [...new Set(model.people.flatMap((p) => Object.keys(p.extra)))].filter((k) => !CORE_KEYS.includes(k))
+  const fixed = ['id', 'name', 'email', 'title', 'manager', 'manager_name', 'team', 'location', 'country', 'tz', 'employment', 'status', 'tags', 'start']
+  const extras = [...new Set(model.people.flatMap((p) => Object.keys(p.extra)))].filter((k) => !CORE_KEYS.includes(k) && !fixed.includes(k))
   const byId = new Map(model.people.map((p) => [p.id, p]))
-  const cols = ['id', 'name', 'email', 'title', 'manager', 'manager_name', 'team', 'location', 'country', 'tz', 'employment', 'status', 'tags', 'start', ...extras]
-  const lines = [cols.join(',')]
+  const teamName = new Map(model.teams.map((t) => [t.id, t.name]))
+  const cols = [...fixed, ...extras]
+  // Header cells pass the same guard as data: a detail key is free text from any document.
+  const lines = [cols.map(cell).join(',')]
   for (const p of model.people) {
-    const team = model.teams.find((t) => t.id === p.team)
-    const row = { ...p, email: p.email[0] || '', manager_name: byId.get(p.manager)?.name || '', team: team?.name || '', ...p.extra }
-    lines.push(cols.map((c) => cell(row[c])).join(','))
+    const row = { ...p.extra, ...p, email: p.email[0] || '', manager_name: byId.get(p.manager)?.name || '', team: teamName.get(p.team) || '' }
+    lines.push(cols.map((c) => cell(Object.hasOwn(p.extra, c) && !fixed.includes(c) ? p.extra[c] : row[c])).join(','))
   }
   return lines.join('\r\n') + '\r\n'
 }
@@ -106,7 +126,8 @@ export function orgToMermaid(model, limit = 400) {
   return lines.join('\n') + '\n'
 }
 
-const vc = (s) => String(s ?? '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/([,;])/g, '\\$1')
+/** vCard text: backslash, comma and semicolon escaped, every line break (CRLF, CR, LF) as \n, other controls dropped. */
+const vc = (s) => String(s ?? '').replace(/\\/g, '\\\\').replace(/\r\n|\r|\n/g, '\\n').replace(/[\u0000-\u001f\u007f]/g, '').replace(/([,;])/g, '\\$1')
 
 /** Fold at 75 octets, continuation lines start with a space (RFC 6350 3.2). */
 function fold(line) {

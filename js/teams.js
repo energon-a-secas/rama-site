@@ -5,7 +5,7 @@
 // unknown team name creates the team rather than dropping the person.
 // Pure: no DOM.
 
-import { slug, safeColor, str } from './core.js'
+import { slug, safeColor, str, hash } from './core.js'
 
 const MAX_TEAMS = 1000
 const MAX_DEPTH = 6
@@ -15,7 +15,10 @@ export function normalizeTeams(raw, pending, find, ctx) {
   const teams = []
   const ids = new Set()
   const byKey = new Map()
-  const key = (t) => { for (const k of [t.id, slug(t.name), t.name.toLowerCase()]) if (!byKey.has(k)) byKey.set(k, t) }
+  // Empty keys are skipped: every non-Latin name slugs to '', and one '' key folded them all into one team.
+  const key = (t) => { for (const k of [t.id, slug(t.name), t.name.toLowerCase()]) if (k && !byKey.has(k)) byKey.set(k, t) }
+  const lookup = (ref) => byKey.get(ref) || (slug(ref) && byKey.get(slug(ref))) || byKey.get(ref.toLowerCase())
+  const idFor = (name) => slug(name) || `t-${hash(name).toString(36)}`
 
   const walk = (list, parent, depth) => {
     if (list == null) return
@@ -26,7 +29,7 @@ export function normalizeTeams(raw, pending, find, ctx) {
       if (!t || typeof t !== 'object' || Array.isArray(t)) { ctx.warn(`teams[${i}] is not a team`); return }
       const name = str(t.name, 120)
       if (!name) { ctx.warn('A team with no name was skipped'); return }
-      let id = slug(t.id) || slug(name) || `team-${teams.length + 1}`
+      let id = slug(t.id) || idFor(name)
       if (ids.has(id)) {
         let n = 2
         while (ids.has(`${id}-${n}`)) n++
@@ -42,7 +45,8 @@ export function normalizeTeams(raw, pending, find, ctx) {
         notes: str(t.notes, 4000), members: [], floorplan: floorplanKeys(t),
       }
       for (const m of Array.isArray(t.members) ? t.members.slice(0, 500) : []) {
-        const { ref, pct } = readMember(m)
+        const { ref, pct, bad } = readMember(m)
+        if (bad) ctx.warn(`Team ${name}: share "${str(bad, 20)}" is not a number from 1 to 100, so it counts as 100`)
         const person = ref != null ? find(ref) : null
         if (!person) { ctx.warn(`Team ${name}: member "${str(ref, 80)}" is not in people`); continue }
         const had = team.members.find((x) => x.person === person)
@@ -61,9 +65,9 @@ export function normalizeTeams(raw, pending, find, ctx) {
   for (const { person, team } of pending) {
     if (team == null || team === '') continue
     const ref = str(team, 120)
-    let t = byKey.get(ref) || byKey.get(slug(ref)) || byKey.get(ref.toLowerCase())
+    let t = lookup(ref)
     if (!t && ref && teams.length < MAX_TEAMS) {
-      let id = slug(ref) || `team-${teams.length + 1}`
+      let id = idFor(ref)
       while (ids.has(id)) id += '-x'
       ids.add(id)
       t = { id, name: ref, parent: '', color: '', lead: '', owns: [], notes: '', members: [], floorplan: {} }
@@ -81,15 +85,18 @@ export function normalizeTeams(raw, pending, find, ctx) {
 function readMember(m) {
   if (typeof m === 'string' || typeof m === 'number') return { ref: String(m), pct: 100 }
   if (!m || typeof m !== 'object' || Array.isArray(m)) return { ref: null, pct: 100 }
-  if (m.person != null) return { ref: m.person, pct: pct(m.pct) }
+  if (m.person != null) return { ref: m.person, ...share(m.pct) }
   const keys = Object.keys(m).filter((k) => !BAD_KEYS.has(k))
-  if (keys.length === 1) return { ref: keys[0], pct: pct(m[keys[0]]) }
+  if (keys.length === 1) return { ref: keys[0], ...share(m[keys[0]]) }
   return { ref: null, pct: 100 }
 }
 
-const pct = (v) => {
-  const n = Number(v)
-  return Number.isFinite(n) ? Math.min(100, Math.max(1, Math.round(n))) : 100
+/** A share: empty means 100, "50%" means 50, and anything else unreadable is 100 with a warning. */
+function share(v) {
+  if (v == null || (typeof v === 'string' && !v.trim())) return { pct: 100 }
+  const n = Number(typeof v === 'string' ? v.trim().replace(/%$/, '') : v)
+  if (typeof v === 'boolean' || !Number.isFinite(n)) return { pct: 100, bad: String(v) }
+  return { pct: Math.min(100, Math.max(1, Math.round(n))) }
 }
 
 /** The keys only Floorplan draws, carried through untouched for the Floorplan export. */

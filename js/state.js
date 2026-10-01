@@ -8,7 +8,7 @@ import { createStore } from './neorgon-persist.js'
 import { readDoc } from './docio.js'
 import { indexOrg } from './tree.js'
 import { resolveMe } from './me.js'
-import { slug } from './core.js'
+import { slug, hash } from './core.js'
 
 const docStore = createStore({ key: 'rama-site:doc', version: 1 })
 const previousStore = createStore({ key: 'rama-site:previous', version: 1 })
@@ -67,7 +67,10 @@ export function savePrefs() {
 }
 
 /** The picked card is remembered per org, by the org's title. */
-const orgKey = () => slug(state.model?.title || '') || 'org'
+const orgKey = () => {
+  const title = state.model?.title || ''
+  return slug(title) || `org-${hash(title).toString(36)}`
+}
 export const pickedFor = () => prefs.picked[orgKey()] || ''
 export function setPicked(id) {
   if (id) prefs.picked[orgKey()] = id
