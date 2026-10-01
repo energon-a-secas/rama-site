@@ -17,6 +17,7 @@
 :root {
   /* Per-site identity: set to this site's hub card accent (the accent table in .claude/HUB_REGISTRY.md) */
   --accent: #34d399;
+  --accent-bright: #6ee7b7;
 
   /* Site extras base.css does not define */
   --surface-toast: #1a1730;
@@ -25,7 +26,7 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --control-height: 44px;
   --control-height-sm: 36px;
-  --on-accent: #f9f9f9; /* Check contrast when changing the site accent. */
+  --on-accent: #052e1f; /* Emerald-400 is light: dark text on it measures 9.9:1. */
   --shadow-card: 0 12px 28px rgba(15, 23, 42, 0.5);
   --shadow-modal: 0 24px 48px rgba(2, 6, 23, 0.58);
   --z-sticky-header: 200;

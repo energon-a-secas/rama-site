@@ -4,29 +4,32 @@
   <meta charset="UTF-8">
   <!-- Strict CSP. An inline script runs only if its sha256 is listed: the one hash is the theme
        guard further down, so editing that script means re-hashing it (smoke check 29 reports a
-       mismatch). Inline on*="" handlers never run; attach listeners from a script file. Add a
-       source only when the page loads from it, as an exact host or a pinned path, never a whole
-       package CDN: a Convex deployment adds its https and wss URLs to connect-src, and sign-in
-       adds the CSP table in packages/neorgon-ui/auth/README.md. frame-ancestors, report-uri and
-       sandbox are ignored in a meta tag, so they are left out. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'sha256-na6phygP/tfoCIp4oBeQgGJJpQsZob/udrLum+20QTI=' https://gc.zgo.at https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://cdn.neorgon.org/v1.0.0/; img-src 'self' data: https://neorgon.goatcounter.com; font-src 'self'; connect-src 'self' https://neorgon.goatcounter.com https://cloudflareinsights.com; manifest-src 'self'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
+       mismatch). Inline on*="" handlers never run; listeners live in js/events.js.
+       script-src: the theme guard by hash, js-yaml by exact pinned path, the header kit's two
+       analytics hosts, and Clerk plus Turnstile for the Auth Kit (packages/neorgon-ui/auth/README.md).
+       img-src and connect-src carry https: on purpose: a document's `photo:` can live on any https
+       host, and ?src= fetches a document from any https host that allows CORS. Nothing in a
+       document can run script, so the broad source only ever loads an image or a text file.
+       frame-ancestors, report-uri and sandbox are ignored in a meta tag, so they are left out. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'sha256-na6phygP/tfoCIp4oBeQgGJJpQsZob/udrLum+20QTI=' https://cdn.jsdelivr.net/npm/js-yaml@4.3.2/dist/js-yaml.min.js https://gc.zgo.at https://static.cloudflareinsights.com https://clerk.neorgon.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.neorgon.org/v1.0.0/; img-src 'self' data: https://img.clerk.com https://neorgon.goatcounter.com https:; font-src 'self'; connect-src 'self' https://clerk.neorgon.com https://neorgon.goatcounter.com https://cloudflareinsights.com https:; manifest-src 'self'; frame-src https://challenges.cloudflare.com; worker-src blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-title" content="Rama">
   <link rel="manifest" href="/site.webmanifest">
   <meta name="neo-mark" content="on">
-  <title>Rama</title>
-  <meta name="description" content="Navigate your organization, starting with you">
-  <meta property="og:title" content="Rama">
-  <meta property="og:description" content="Navigate your organization, starting with you">
+  <title>Rama | Org Chart Explorer</title>
+  <meta name="description" content="Load your org from YAML, JSON or CSV, start on your own card, walk to your manager and across teams, then hand the same team to Floorplan or Reparto">
+  <meta property="og:title" content="Rama | Org Chart Explorer">
+  <meta property="og:description" content="Load your org from YAML, JSON or CSV, start on your own card, walk to your manager and across teams, then hand the same team to Floorplan or Reparto">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://rama.neorgon.com/">
   <meta property="og:site_name" content="Neorgon">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Rama">
-  <meta name="twitter:description" content="Navigate your organization, starting with you">
+  <meta name="twitter:title" content="Rama | Org Chart Explorer">
+  <meta name="twitter:description" content="Load your org from YAML, JSON or CSV, start on your own card, walk to your manager and across teams, then hand the same team to Floorplan or Reparto">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://rama.neorgon.com/">
   <meta property="og:locale" content="en_US">
@@ -36,40 +39,45 @@
   <meta property="og:image" content="https://rama.neorgon.com/og-preview.jpg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="Rama">
+  <meta property="og:image:alt" content="Rama: an org chart centred on one person, with their manager above and their peers beside them">
   <meta name="twitter:image" content="https://rama.neorgon.com/og-preview.jpg"> -->
   <!-- Fleet design tokens: canonical, do not redeclare locally (docs/references/new-project-context.md, Design) -->
   <link rel="stylesheet" href="https://cdn.neorgon.org/v1.0.0/styles/base.css">
   <link rel="stylesheet" href="css/style.css">
-  <!-- template:styles -->
-  <!-- /template:styles -->
+  <link rel="stylesheet" href="css/chart.css">
+  <link rel="stylesheet" href="css/panel.css">
   <!-- Neorgon Header Kit (vendored; ?header=live swaps CSS to CDN). Keep after style.css, the kit owns the header. -->
   <script>(function(){var m=location.search.match(/[?&]theme=([\w-]+)/)||document.cookie.match(/(?:^|;\s*)neo_theme=([\w-]+)/);if(m&&m[1]!=='default')document.documentElement.dataset.theme=decodeURIComponent(m[1]);})();</script>
   <link rel="stylesheet" href="css/neorgon-header.css">
   <link rel="stylesheet" href="css/neorgon-themes.css">
   <link rel="stylesheet" href="https://cdn.neorgon.org/v1.0.0/header/season.css">
   <script defer src="js/neorgon-header.js"></script>
-  <!-- Neorgon Footer Kit (vendored). Pins the footer to the viewport floor on short
-       pages and builds the meta bar + back-to-top. See packages/neorgon-ui/footer/README.md.
-       Optional stamps: <meta name="neo-repo"|"neo-version"|"neo-updated"> -->
+  <!-- Neorgon Footer Kit (vendored). See packages/neorgon-ui/footer/README.md. -->
   <link rel="stylesheet" href="css/neorgon-footer.css">
   <script defer src="js/neorgon-footer.js"></script>
   <!-- Neorgon Beacon Kit (vendored). Bottom-left correction reporter: it
        carries page context to balise.neorgon.com in a URL fragment and the
        visitor writes there. No form on this page and no request from it.
-       Opt out per page with <meta name="beacon" content="off">.
        See packages/neorgon-ui/beacon/README.md. -->
   <meta name="beacon-site" content="rama-site">
   <link rel="stylesheet" href="css/neorgon-beacon.css">
   <script defer src="js/neorgon-beacon.js"></script>
+  <!-- Neorgon Auth Kit: optional sign-in, used only to find the visitor's own card by email.
+       Rama stores nothing per account. packages/neorgon-ui/auth/README.md -->
+  <meta name="clerk-publishable-key" content="pk_live_Y2xlcmsubmVvcmdvbi5jb20k">
+  <meta name="neo-auth-reason" content="Sign in and Rama opens the chart on your own card when your email is in the org.">
+  <link rel="stylesheet" href="css/neorgon-auth.css">
+  <meta name="neo-repo" content="https://github.com/energon-a-secas/rama-site">
+  <meta name="neo-version" content="1.0.0">
+  <meta name="neo-updated" content="2026-10-01">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "WebApplication",
     "name": "Rama",
-    "description": "Navigate your organization, starting with you",
+    "description": "Load your org from YAML, JSON or CSV, start on your own card, walk to your manager and across teams, then hand the same team to Floorplan or Reparto",
     "url": "https://rama.neorgon.com/",
-    "applicationCategory": "DeveloperApplication",
+    "applicationCategory": "BusinessApplication",
     "operatingSystem": "Any",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "author": { "@type": "Organization", "name": "Neorgon", "url": "https://neorgon.com/" }
@@ -78,16 +86,10 @@
 </head>
 <body>
 
-  <a class="skip-link" href="#main">Skip to content</a>
+  <a class="skip-link" href="#stage">Skip to the chart</a>
 
-  <!-- Neorgon Header Kit contract (packages/neorgon-ui/header/README.md).
-       data-header-mode: hub (glass) | content (sticky gradient) | app (slim, auto-hides on scroll).
-       Pick content for learning/content sites, app for tool-dense sites. -->
   <header class="header-bar" data-header-mode="app">
     <div class="header-logo">
-      <!-- PATTERN: one link: mark + name go to THIS site's home (root or #home)
-           so clicking either resets the view. The hub icon in .header-right
-           is the only header link to neorgon.com. -->
       <a href="./" class="header-title-link">
         <img src="energon-classic-logo.png" class="header-logo-img" alt="">
         <div class="header-title-wrap">
@@ -97,26 +99,55 @@
       </a>
     </div>
 
-    <!-- .header-right owns margin-left:auto; home icon is always last. -->
     <div class="header-right">
-      <!-- template:actions -->
-      <!-- Optional .header-actions: keep one primary control visible with
-           data-keep-mobile. Wrap text beside an SVG in <span>. -->
-      <!-- /template:actions -->
+      <!-- Every label sits in its own <span>: the kit squares off a control whose only element
+           child is an <svg>. The two menus stay in the header on phones (data-keep-mobile),
+           because a dropdown inside the kit's ⋯ panel is clipped by that panel's scroll box. -->
+      <div class="header-actions">
+        <button type="button" class="nav-link" id="searchBtn" data-action="search" data-keep-mobile aria-keyshortcuts="/ Control+K Meta+K" title="Search people (/)">
+          <span data-icon="search"></span><span class="nav-label">Search</span><kbd class="nav-kbd">/</kbd>
+        </button>
+        <button type="button" class="nav-link" id="meBtn" data-action="me" data-keep-mobile aria-keyshortcuts="M" title="Go to your card (M)">
+          <span data-icon="locate"></span><span class="nav-label" id="meLabel">Me</span>
+        </button>
+        <div class="menu-wrap" data-keep-mobile>
+          <button type="button" class="nav-link" id="orgBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="orgMenu" title="Edit, import and export the org">
+            <span data-icon="file"></span><span class="nav-label">Org</span><span class="caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="header-menu" id="orgMenu" role="menu" aria-label="Org document">
+            <button type="button" role="menuitem" data-action="edit"><span data-icon="pencil"></span>Edit the document<kbd>E</kbd></button>
+            <button type="button" role="menuitem" data-action="import"><span data-icon="upload"></span>Import YAML, JSON or CSV</button>
+            <button type="button" role="menuitem" data-action="example"><span data-icon="sparkles"></span>Load the example org</button>
+            <button type="button" role="menuitem" data-action="blank"><span data-icon="plus"></span>Start a blank org</button>
+            <div class="menu-sep" role="separator"></div>
+            <button type="button" role="menuitem" data-export="yaml"><span data-icon="download"></span>Download YAML</button>
+            <button type="button" role="menuitem" data-export="json"><span data-icon="download"></span>Download JSON</button>
+            <button type="button" role="menuitem" data-export="csv"><span data-icon="download"></span>Download CSV</button>
+            <button type="button" role="menuitem" data-export="mermaid"><span data-icon="download"></span>Download Mermaid</button>
+            <div class="menu-sep" role="separator"></div>
+            <button type="button" role="menuitem" data-export="link"><span data-icon="link"></span>Copy a share link</button>
+            <button type="button" role="menuitem" data-export="prompt"><span data-icon="copy"></span>Copy as a prompt for Claude</button>
+          </div>
+        </div>
+        <div class="menu-wrap" data-keep-mobile>
+          <button type="button" class="nav-link" id="handBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="handMenu" title="Open this org in another Neorgon tool">
+            <span data-icon="send"></span><span class="nav-label">Hand off</span><span class="caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="header-menu menu--wide" id="handMenu" role="menu" aria-label="Hand off to another tool">
+            <button type="button" role="menuitem" data-handoff="floorplan"><span data-icon="rooms"></span><span>Floorplan <small id="handScope">everyone under this person, as rooms</small></span></button>
+            <button type="button" role="menuitem" data-handoff="floorplan-all"><span data-icon="rooms"></span><span>Floorplan <small>the whole org</small></span></button>
+            <button type="button" role="menuitem" data-handoff="reparto"><span data-icon="calendar"></span><span>Reparto <small id="handTeam">plan this team's sprint capacity</small></span></button>
+            <div class="menu-sep" role="separator"></div>
+            <button type="button" role="menuitem" data-handoff="floorplan-file"><span data-icon="download"></span>Download the Floorplan YAML</button>
+            <button type="button" role="menuitem" data-handoff="reparto-file"><span data-icon="download"></span>Download the Reparto plan</button>
+          </div>
+        </div>
+        <button type="button" class="nav-link" data-action="help" aria-keyshortcuts="?" title="Help and keys (?)">
+          <span data-icon="help"></span><span class="nav-label">Help</span>
+        </button>
+      </div>
 
-      <!-- Accounts (only for a site with sign-in): the Neorgon Auth Kit renders a "Sign in"
-           button in this slot, and Clerk's avatar menu once signed in. It also owns the
-           sign-in dialog, so there is no panel or modal to write. Vendor it with
-           packages/neorgon-ui/sync-auth.sh (its header shows how to adopt one site), then add
-             <meta name="clerk-publishable-key" content="pk_live_...">
-             a stylesheet link to css/neorgon-auth.css (named in prose here, because the
-             smoke ref checker reads comments and this file does not exist until you vendor it)
-           to <head>, and in js/events.js:
-             import { NeoAuth } from './neorgon-auth.js';
-             NeoAuth.onChange(({ signedIn, label }) => ...); NeoAuth.start({ convex });
-           Contract, CSP and gated actions: packages/neorgon-ui/auth/README.md
       <div class="neo-auth" data-neo-auth data-keep-mobile hidden></div>
-      -->
 
       <a class="header-home" href="https://neorgon.com/" title="neorgon.com" aria-label="Neorgon home">
         <svg class="nh-hub-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -132,29 +163,138 @@
     </div>
   </header>
 
-  <!-- template:main -->
-  <main id="main" tabindex="-1">
-    <div class="container stack stack--loose">
-      <section class="section" aria-labelledby="page-title">
-        <div class="section__titles">
-          <h2 class="section__title" id="page-title">Start with the task</h2>
-          <p class="section__lead">Navigate your organization, starting with you</p>
+  <main id="main" class="app" tabindex="-1">
+    <div class="stagebar">
+      <div class="stagebar__org">
+        <h2 class="org-title" id="orgTitle">Loading the org</h2>
+        <ul class="org-stats" id="orgStats" aria-label="Org at a glance"></ul>
+      </div>
+      <div class="stagebar__tools">
+        <div class="seg" role="group" aria-label="View">
+          <button type="button" class="seg__btn" data-view="chart" aria-pressed="true"><span data-icon="network"></span>Chart</button>
+          <button type="button" class="seg__btn" data-view="overview" aria-pressed="false" aria-keyshortcuts="O"><span data-icon="orbit"></span>Overview</button>
         </div>
-        <!-- Replace this section with the site's core task. Keep controls close to
-             what they affect. Optional recipes: _template/PATTERNS.md. -->
-      </section>
+        <button type="button" class="btn btn--ghost btn--sm" data-action="top" aria-keyshortcuts="Home"><span data-icon="top"></span><span>Top</span></button>
+      </div>
     </div>
-  </main>
-  <!-- /template:main -->
+    <div class="notice" id="notice" hidden></div>
 
-  <!-- Neorgon Footer Kit contract. data-footer-mode: minimal (default) | content | app.
-       Replace the copy with a real note (privacy, data provenance, disclaimer) or drop
-       the text entirely, the kit appends "Part of Neorgon" and any version stamps. -->
-  <footer class="neo-footer" data-footer-mode="minimal">
-    <!-- Optional: one accurate line about provenance or data use. The kit adds attribution. -->
+    <div class="workspace">
+      <section class="stage" id="stage" tabindex="-1" aria-label="Org chart">
+        <div class="chart" id="chart"></div>
+        <div class="overview" id="overview" hidden>
+          <div class="overview__bar">
+            <label class="overview__color">
+              <span>Colour by</span>
+              <select class="select select--sm" id="colorBy">
+                <option value="branch">Division</option>
+                <option value="team">Team</option>
+                <option value="track">Track</option>
+                <option value="employment">Employment</option>
+                <option value="country">Country</option>
+              </select>
+            </label>
+            <ul class="legend" id="legend" aria-label="Legend"></ul>
+            <button type="button" class="btn btn--ghost btn--sm" data-action="fit"><span data-icon="fit"></span><span>Fit</span></button>
+          </div>
+          <svg class="overview__svg" id="overviewSvg" role="img" aria-labelledby="overviewTitle"><title id="overviewTitle">The whole org as rings, the top at the centre</title></svg>
+          <div class="tip" id="tip" role="status" hidden></div>
+        </div>
+      </section>
+      <aside class="panel" id="panel" aria-label="Profile" hidden>
+        <div class="panel__scroll" id="panelBody"></div>
+      </aside>
+    </div>
+    <p class="sr-only" aria-live="polite" id="announce"></p>
+  </main>
+
+  <footer class="neo-footer" data-footer-mode="app" data-footer-top="off">
+    <p class="neo-footer-note">Your org stays in this browser. Nothing leaves it unless you copy a link or hand it off.</p>
   </footer>
 
+  <!-- Search: a palette, not a page. -->
+  <dialog class="dialog dialog--palette" id="searchDialog" aria-labelledby="searchTitle">
+    <h2 class="sr-only" id="searchTitle">Search people</h2>
+    <div class="palette__field">
+      <span data-icon="search" data-size="18"></span>
+      <input class="palette__input" id="searchInput" type="search" autocomplete="off" spellcheck="false"
+        placeholder="Name, title, team, skill or city" aria-controls="searchResults" aria-autocomplete="list">
+      <kbd>Esc</kbd>
+    </div>
+    <ul class="palette__results" id="searchResults" role="listbox" aria-label="People"></ul>
+    <p class="palette__hint" id="searchHint">Up and down to choose, Enter to go there.</p>
+  </dialog>
+
+  <!-- Who are you: links this browser to one card. -->
+  <dialog class="dialog" id="whoDialog" aria-labelledby="whoTitle">
+    <div class="dialog__header">
+      <h2 id="whoTitle">Which card is yours?</h2>
+      <button type="button" class="btn btn--ghost btn--icon" data-dialog-close aria-label="Close"><span data-icon="x"></span></button>
+    </div>
+    <div class="dialog__body">
+      <p>Rama opens on your card and keeps the rest of the org one step away. Pick yourself, and this browser remembers it for this org.</p>
+      <input class="input" id="whoInput" type="search" autocomplete="off" spellcheck="false" placeholder="Type your name or email" aria-controls="whoResults">
+      <ul class="who__results" id="whoResults" role="listbox" aria-label="People"></ul>
+      <p class="field__hint" id="whoAuth">Signed in with a Neorgon account? Rama finds you by email on its own.
+        <button type="button" class="btn-link" data-action="signin">Sign in</button></p>
+    </div>
+  </dialog>
+
+  <!-- The document editor. -->
+  <dialog class="dialog dialog--editor" id="editorDialog" aria-labelledby="editorTitle">
+    <div class="dialog__header">
+      <h2 id="editorTitle">Org document</h2>
+      <div class="editor__tools">
+        <div class="seg seg--sm" role="group" aria-label="Format">
+          <button type="button" class="seg__btn" data-format="yaml" aria-pressed="true">YAML</button>
+          <button type="button" class="seg__btn" data-format="json" aria-pressed="false">JSON</button>
+        </div>
+        <a class="btn btn--ghost btn--sm" href="llms.txt" target="_blank" rel="noopener"><span data-icon="file"></span><span>Schema</span></a>
+        <button type="button" class="btn btn--ghost btn--icon" data-dialog-close aria-label="Close"><span data-icon="x"></span></button>
+      </div>
+    </div>
+    <div class="dialog__body editor__body">
+      <textarea class="textarea editor__text" id="editorText" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Org document" aria-describedby="editorIssues"></textarea>
+      <div class="editor__issues" id="editorIssues" aria-live="polite"></div>
+    </div>
+    <div class="dialog__footer">
+      <button type="button" class="btn btn--ghost" data-action="editor-import"><span data-icon="upload"></span><span>Import a file</span></button>
+      <span class="dialog__spacer"></span>
+      <button type="button" class="btn btn--secondary" data-dialog-close>Cancel</button>
+      <button type="button" class="btn btn--primary" data-action="apply" aria-keyshortcuts="Control+Enter Meta+Enter">Apply</button>
+    </div>
+  </dialog>
+
+  <dialog class="dialog" id="helpDialog" aria-labelledby="helpTitle">
+    <div class="dialog__header">
+      <h2 id="helpTitle">Getting around</h2>
+      <button type="button" class="btn btn--ghost btn--icon" data-dialog-close aria-label="Close"><span data-icon="x"></span></button>
+    </div>
+    <div class="dialog__body help">
+      <p>Rama draws an org from one document: people, who each reports to, and anything else you want on a profile. Click anyone to stand on their card. Their manager sits above them, their peers beside them, and everyone's reports underneath.</p>
+      <dl class="keys">
+        <div><dt><kbd>↑</kbd></dt><dd>Their manager</dd></div>
+        <div><dt><kbd>↓</kbd></dt><dd>Their first report</dd></div>
+        <div><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>The previous or next peer</dd></div>
+        <div><dt><kbd>Home</kbd></dt><dd>The top of the org</dd></div>
+        <div><dt><kbd>M</kbd></dt><dd>Your own card</dd></div>
+        <div><dt><kbd>/</kbd></dt><dd>Search</dd></div>
+        <div><dt><kbd>O</kbd></dt><dd>Chart or Overview</dd></div>
+        <div><dt><kbd>P</kbd></dt><dd>Show or hide the profile</dd></div>
+        <div><dt><kbd>E</kbd></dt><dd>Edit the document</dd></div>
+        <div><dt><kbd>Esc</kbd></dt><dd>Close the profile</dd></div>
+      </dl>
+      <p><strong>Your card.</strong> Rama starts on you when it knows who you are: a <code>?me=</code> in the link, the card you picked with <em>Me</em>, or the email on your Neorgon account. Otherwise it starts at the top.</p>
+      <p><strong>The document.</strong> YAML or JSON, with <code>manager:</code> for reporting lines and any extra key you like shown under Details. The schema, with every key, is in <a href="llms.txt" target="_blank" rel="noopener">llms.txt</a>. CSV exports from an HR tool import too.</p>
+      <p><strong>Other tools.</strong> <em>Hand off</em> opens the same people in Floorplan, as rooms, or in Reparto, as a team's sprint capacity, through a link. Nothing is uploaded.</p>
+    </div>
+  </dialog>
+
+  <input type="file" id="fileInput" accept=".yaml,.yml,.json,.csv,.tsv,.txt,text/yaml,application/json,text/csv" hidden>
   <div id="app-toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- js-yaml 4.3.2 from jsdelivr, pinned with SRI, the same build Floorplan loads. -->
+  <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.3.2/dist/js-yaml.min.js" integrity="sha384-uwLg6oO8ZhFG2SuQfgmkMtosjtrFYlkPspa/cXS+b3D8GLRTHMDl/mTwqImdlKQO" crossorigin="anonymous"></script>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

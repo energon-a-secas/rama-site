@@ -1,0 +1,92 @@
+// ── Moving around ────────────────────────────────────────────
+// go(id) is the only way the focus changes. In the chart it runs inside a
+// view transition: every card is named p-<id>, so the browser morphs each
+// one from its old place to its new one, and cards that arrive or leave fade.
+// Each move is a history entry (?at=<id>), so Back walks back through the org.
+
+import { state, ui, person } from './state.js'
+import { draw, announce } from './render.js'
+import { focusEl } from './render-chart.js'
+import { paintFocus } from './overview.js'
+import { prefersReducedMotion } from './neorgon-dom.js'
+import { $ } from './utils.js'
+import { plural } from './core.js'
+
+export function go(id, { push = true, focusDom = false } = {}) {
+  const ix = state.ix
+  if (!ix || !ix.has(id)) return
+  if (id === ui.focus) {
+    if (focusDom) focusEl()?.focus({ preventScroll: true })
+    return
+  }
+  ui.moved = true
+  if (push) pushAt(id)
+  const p = person(id)
+  const n = ix.kids(id).length
+  announce(`${p.name}${p.title ? `, ${p.title}` : ''}${n ? `, ${plural(n, 'direct report')}` : ''}`)
+
+  if (ui.view === 'overview') {
+    ui.focus = id
+    paintFocus()
+    draw()
+    return
+  }
+  const apply = () => {
+    ui.focus = id
+    draw()
+    center('instant')
+  }
+  const after = () => { if (focusDom) focusEl()?.focus({ preventScroll: true }) }
+  if (document.startViewTransition && !prefersReducedMotion() && !document.hidden) {
+    document.startViewTransition(apply).finished.finally(after)
+  } else {
+    apply()
+    after()
+  }
+}
+
+/** Put the focused card a third of the way down the stage, centred across. */
+export function center(behavior = 'smooth') {
+  const stage = $('stage')
+  const el = focusEl()
+  if (!el || ui.view !== 'chart') return
+  const s = stage.getBoundingClientRect()
+  const r = el.getBoundingClientRect()
+  stage.scrollTo({
+    left: stage.scrollLeft + (r.left + r.width / 2) - (s.left + s.width / 2),
+    top: stage.scrollTop + (r.top - s.top) - Math.max(24, s.height * 0.32),
+    behavior: prefersReducedMotion() ? 'instant' : behavior,
+  })
+}
+
+function pushAt(id) {
+  const url = new URL(location.href)
+  url.searchParams.set('at', id)
+  url.hash = ''
+  history.pushState({ at: id }, '', url)
+}
+
+export function replaceAt(id) {
+  const url = new URL(location.href)
+  if (id) url.searchParams.set('at', id)
+  else url.searchParams.delete('at')
+  history.replaceState({ at: id || null }, '', url)
+}
+
+/** Arrow-key moves: up to the manager, down to the first report, across to peers. */
+export function step(dir) {
+  const ix = state.ix
+  if (!ix) return
+  const id = ui.focus || ix.top
+  let to = null
+  if (dir === 'up') to = ix.parentOf(id)
+  else if (dir === 'down') to = ix.kids(id)[0] || null
+  else {
+    const parent = ix.parentOf(id)
+    const peers = parent ? ix.kids(parent) : [id]
+    const i = peers.indexOf(id)
+    to = peers[i + (dir === 'left' ? -1 : 1)] || null
+  }
+  if (to) go(to, { focusDom: true })
+  else announce(dir === 'up' ? 'Already at the top' : dir === 'down' ? 'No reports below' : 'No more peers that way')
+}
