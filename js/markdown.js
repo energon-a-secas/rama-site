@@ -18,6 +18,7 @@ export function renderMarkdown(text) {
   return blocks.map((b) => {
     const lines = b.split('\n')
     if (lines.every((l) => /^\s*[-*] /.test(l))) return `<ul>${lines.map((l) => `<li>${inline(l.replace(/^\s*[-*] /, ''))}</li>`).join('')}</ul>`
-    return `<p>${lines.map(inline).join('<br>')}</p>`
+    // A single line break is a space, as in Markdown: a YAML block wraps its prose at any column.
+    return `<p>${inline(lines.join(' '))}</p>`
   }).join('')
 }

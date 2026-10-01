@@ -60,10 +60,16 @@ function renderStagebar() {
 function renderNotice() {
   const el = $('notice')
   const warns = state.issues.filter((i) => i.level !== 'info')
-  if (!warns.length) { el.hidden = true; el.innerHTML = ''; return }
+  const ix = state.ix
+  // A document with people and teams but no reporting lines (a Floorplan file, say) draws flat; say how to fix that.
+  const flat = ix && ix.model.people.length > 1 && ix.stats.managers === 0
+  if (!warns.length && !flat) { el.hidden = true; el.innerHTML = ''; return }
   el.hidden = false
-  el.innerHTML = `${icon('alert', { size: 15 })}<span>${escHtml(plural(warns.length, 'thing'))} in the document need a look: ${escHtml(warns[0].msg)}${warns.length > 1 ? ', and more' : ''}.</span>` +
-    '<button type="button" class="btn-link" data-action="edit">Review in the editor</button>'
+  const lines = []
+  if (warns.length) lines.push(`${plural(warns.length, 'thing')} in the document ${warns.length === 1 ? 'needs' : 'need'} a look: ${warns[0].msg}${warns.length > 1 ? ', and more' : ''}.`)
+  if (flat) lines.push(`Nobody reports to anyone yet${ix.model.teams.length ? ', though the teams came through' : ''}. Add manager: to each person to draw the reporting lines.`)
+  el.innerHTML = `${icon('alert', { size: 15 })}<span>${lines.map(escHtml).join(' ')}</span>` +
+    '<button type="button" class="btn-link" data-action="edit">Open the editor</button>'
 }
 
 export function renderHeader() {
