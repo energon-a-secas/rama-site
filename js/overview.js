@@ -200,7 +200,7 @@ function renderLegend() {
   const shown = sorted.slice(0, 9)
   const rest = sorted.slice(9).reduce((n, r) => n + r.n, 0)
   $('legend').innerHTML = shown.map((r) => `<li><span class="swatch" style="--c:${escHtml(r.color)}"></span>${escHtml(r.label)} <span class="legend__n">${r.n}</span></li>`).join('') +
-    (rest ? `<li class="legend__rest">${plural(rest, 'more')}</li>` : '')
+    (rest ? `<li class="legend__rest">${`${rest} more`}</li>` : '')
 }
 
 // ── Pan and zoom ─────────────────────────────────────────────
