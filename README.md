@@ -2,7 +2,7 @@
 
 # Rama
 
-Climb an org chart from your own seat to the top
+Navigate your organization, starting with you
 
 [![Live][badge-site]][url-site]
 [![HTML5][badge-html]][url-html]

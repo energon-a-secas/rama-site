@@ -1,0 +1,554 @@
+# Rama org document. Schema and examples: https://rama.neorgon.com/llms.txt
+# Lanternfish Systems is invented: every name, address and number below is
+# fictional (.example domains, 555-01xx numbers). Replace it with your own org.
+rama: 1
+title: Lanternfish Systems
+notes: |
+  A made-up company of 60 people across four continents. Click anyone to see
+  where they sit, climb the chain with the arrow keys, or open **Overview**
+  for the whole org at once. The Revenue Platform division is the same team
+  as Floorplan's example, so **Hand off > Floorplan** shows it as rooms.
+
+# Built-in roles (ceo, eng-manager, senior-engineer and about thirty more) need
+# no declaring. Declare one here to add it or to change a built-in's title.
+roles:
+  payments-engineer: { title: Payments Engineer, track: ic, level: IC3 }
+  staff-engineer: { title: Staff Engineer, track: ic, level: IC5, color: "#22d3ee" }
+
+# Any key a person carries that is not a core key is kept and shown under
+# Details. Declare it here to give it a label, a type, and a place in the order.
+fields:
+  pronouns: Pronouns
+  wiki: { label: Wiki page, type: url, prefix: "https://wiki.lanternfish.example/people/" }
+  phone: { label: Desk phone, type: phone }
+  oncall: On-call
+  costCentre: { label: Cost centre, hidden: true }
+
+# Reusable bits of a person, applied with `extends:` (scalars override, tags merge).
+profiles:
+  revenue: { costCentre: CC-410, tags: [payments] }
+  agency: { employment: vendor, notes: "Through Northbank Partners, renewed quarterly." }
+
+people:
+  # ── Executive team ──────────────────────────────────────────
+  - name: Noor Haddad
+    email: noor.haddad@lanternfish.example
+    role: ceo
+    location: Lisbon, Portugal
+    country: PT
+    tz: Europe/Lisbon
+    pronouns: she/her
+    pronounced: NOOR ha-DAD
+    start: 2017-03-01
+    phone: "+351 555 0100"
+  - name: Tomas Aguilar
+    email: tomas.aguilar@lanternfish.example
+    role: cto
+    manager: noor-haddad
+    location: Santiago, Chile
+    country: CL
+    tz: America/Santiago
+    tags: [architecture, distributed systems]
+    start: 2018-01-15
+  - name: Elena Petrova
+    email: elena.petrova@lanternfish.example
+    role: cpo
+    manager: noor-haddad
+    location: Berlin, Germany
+    country: DE
+    tz: Europe/Berlin
+    start: 2019-06-03
+  - name: Grace Whitfield
+    email: grace.whitfield@lanternfish.example
+    role: coo
+    manager: noor-haddad
+    location: Toronto, Canada
+    country: CA
+    tz: America/Toronto
+    start: 2020-02-10
+  - name: Hugo Brandt
+    email: hugo.brandt@lanternfish.example
+    role: exec-assistant
+    manager: noor-haddad
+    location: Lisbon, Portugal
+    country: PT
+    tz: Europe/Lisbon
+
+  # ── Engineering ─────────────────────────────────────────────
+  - name: Priya Raman
+    email: priya.raman@lanternfish.example
+    role: vp-engineering
+    manager: tomas-aguilar
+    location: Bengaluru, India
+    country: IN
+    tz: Asia/Kolkata
+    pronouns: she/her
+    tags: [org design, hiring]
+    start: 2019-09-02
+  - name: Mei Lin Chen
+    email: meilin.chen@lanternfish.example
+    role: principal-engineer
+    manager: priya-raman
+    location: Singapore
+    country: SG
+    tz: Asia/Singapore
+    tags: [aws, kubernetes, performance]
+    wiki: meilin-chen
+  - name: Rafael Costa
+    email: rafael.costa@lanternfish.example
+    role: Head of Security
+    manager: tomas-aguilar
+    location: Porto, Portugal
+    country: PT
+    tz: Europe/Lisbon
+    tags: [security, compliance]
+  - name: Aisha Bello
+    email: aisha.bello@lanternfish.example
+    role: security-engineer
+    manager: rafael-costa
+    location: Abuja, Nigeria
+    country: NG
+    tz: Africa/Lagos
+    tags: [threat modelling, iam]
+  - name: Open role
+    role: security-engineer
+    manager: rafael-costa
+    status: open
+    location: Remote, Europe
+    notes: "Approved for Q4. Application security, two days a week on incident response."
+
+  # Revenue Platform: the Floorplan example's people, now with managers.
+  - name: Hana Kobayashi
+    email: hana.kobayashi@lanternfish.example
+    role: eng-director
+    title: Director, Revenue Platform
+    manager: priya-raman
+    team: revenue-platform
+    location: Seattle, USA
+    country: US
+    tz: America/Los_Angeles
+    pronouns: she/her
+    extends: revenue
+    start: 2020-11-16
+  - name: Sofia Lindqvist
+    email: sofia.lindqvist@lanternfish.example
+    role: eng-manager
+    manager: hana-kobayashi
+    team: next-gen
+    location: Stockholm, Sweden
+    country: SE
+    tz: Europe/Stockholm
+    extends: revenue
+  - name: Ezra Nakamura
+    email: ezra.nakamura@lanternfish.example
+    role: senior-engineer
+    manager: sofia-lindqvist
+    location: Seattle, USA
+    country: US
+    tz: America/Los_Angeles
+    extends: revenue
+    tags: [billing, go]
+    oncall: West rotation, 20%
+  - name: Marcus Bell
+    email: marcus.bell@lanternfish.example
+    role: engineer
+    manager: sofia-lindqvist
+    location: Denver, USA
+    country: US
+    tz: America/Denver
+    extends: revenue
+  - name: Jules Okafor
+    email: [jules.okafor@lanternfish.example, jules@okafor.example]
+    role: lead-engineer
+    manager: sofia-lindqvist
+    location: Lagos, Nigeria
+    country: NG
+    tz: Africa/Lagos
+    pronouns: they/them
+    extends: revenue
+    tags: [migrations, postgres]
+    notes: Half on Core, half on Migration until the cutover.
+    dotted: [mei-lin-chen]
+    wiki: jules-okafor
+  - name: Diego Salinas
+    email: diego.salinas@lanternfish.example
+    role: eng-manager
+    manager: hana-kobayashi
+    team: partner-payouts
+    location: Santiago, Chile
+    country: CL
+    tz: America/Santiago
+    extends: revenue
+  - name: Amara Diallo
+    email: amara.diallo@lanternfish.example
+    role: payments-engineer
+    manager: diego-salinas
+    location: Dakar, Senegal
+    country: SN
+    tz: Africa/Dakar
+    extends: revenue
+    oncall: West rotation, 20%
+  - name: Caleb Stone
+    email: caleb.stone@lanternfish.example
+    role: senior-engineer
+    manager: diego-salinas
+    location: Dublin, Ireland
+    country: IE
+    tz: Europe/Dublin
+    extends: revenue
+    oncall: East rotation, 20%
+  - name: Riya Kapoor
+    email: riya.kapoor@lanternfish.example
+    role: engineer
+    manager: diego-salinas
+    location: Pune, India
+    country: IN
+    tz: Asia/Kolkata
+    extends: revenue
+    oncall: East rotation, 30%
+  - name: Open role
+    role: lead-sre
+    manager: diego-salinas
+    status: open
+    notes: Backfill. Owns the payout ledger's on-call runbooks.
+  - name: Yuki Tanabe
+    email: yuki.tanabe@lanternfish.example
+    role: eng-manager
+    manager: hana-kobayashi
+    team: royalties
+    location: Osaka, Japan
+    country: JP
+    tz: Asia/Tokyo
+    extends: revenue
+  - name: Mateus Ferreira
+    email: mateus.ferreira@lanternfish.example
+    role: senior-engineer
+    manager: yuki-tanabe
+    location: Recife, Brazil
+    country: BR
+    tz: America/Recife
+    extends: revenue
+    oncall: East rotation, 20%
+  - name: Lena Fischer
+    email: lena.fischer@lanternfish.example
+    role: engineer
+    manager: yuki-tanabe
+    location: Hamburg, Germany
+    country: DE
+    tz: Europe/Berlin
+    extends: revenue
+  - name: Pavel Novak
+    email: pavel.novak@northbank.example
+    role: contractor
+    manager: yuki-tanabe
+    extends: [revenue, agency]
+    location: Brno, Czechia
+    country: CZ
+    tz: Europe/Prague
+  - name: Lucia Romano
+    email: lucia.romano@northbank.example
+    role: qa-engineer
+    manager: yuki-tanabe
+    extends: [revenue, agency]
+    location: Turin, Italy
+    country: IT
+    tz: Europe/Rome
+
+  # Platform
+  - name: Kwame Mensah
+    email: kwame.mensah@lanternfish.example
+    role: eng-director
+    title: Director, Platform
+    manager: priya-raman
+    location: Accra, Ghana
+    country: GH
+    tz: Africa/Accra
+    tags: [platform, developer experience]
+  - name: Oskar Nowak
+    email: oskar.nowak@lanternfish.example
+    role: eng-manager
+    manager: kwame-mensah
+    team: platform-enablement
+    location: Krakow, Poland
+    country: PL
+    tz: Europe/Warsaw
+  - name: Ines Moreau
+    email: ines.moreau@lanternfish.example
+    role: staff-engineer
+    manager: oskar-nowak
+    location: Lyon, France
+    country: FR
+    tz: Europe/Paris
+    tags: [build tooling, bazel, ci]
+  - name: Tobias Keller
+    email: tobias.keller@lanternfish.example
+    role: senior-engineer
+    manager: oskar-nowak
+    location: Zurich, Switzerland
+    country: CH
+    tz: Europe/Zurich
+    tags: [ci, terraform]
+  - name: Nia Thompson
+    email: nia.thompson@lanternfish.example
+    role: associate-engineer
+    manager: oskar-nowak
+    status: incoming
+    start: 2026-10-19
+    location: Kingston, Jamaica
+    country: JM
+    tz: America/Jamaica
+    notes: Joins the week of 19 October. Buddy is Tobias.
+  - name: Leila Farahani
+    email: leila.farahani@lanternfish.example
+    role: eng-manager
+    manager: kwame-mensah
+    team: data-and-reporting
+    location: Vancouver, Canada
+    country: CA
+    tz: America/Vancouver
+  - name: Bakari Otieno
+    email: bakari.otieno@lanternfish.example
+    role: data-engineer
+    manager: leila-farahani
+    location: Nairobi, Kenya
+    country: KE
+    tz: Africa/Nairobi
+    tags: [warehouse, dbt, airflow]
+  - name: Sun-woo Park
+    email: sunwoo.park@lanternfish.example
+    role: data-engineer
+    manager: leila-farahani
+    location: Seoul, South Korea
+    country: KR
+    tz: Asia/Seoul
+    tags: [dashboards, sql]
+  - name: Fatima Zahra
+    email: fatima.zahra@lanternfish.example
+    role: senior-engineer
+    manager: leila-farahani
+    status: leave
+    location: Casablanca, Morocco
+    country: MA
+    tz: Africa/Casablanca
+    notes: Parental leave until January.
+  - name: Arjun Mehta
+    email: arjun.mehta@lanternfish.example
+    role: staff-engineer
+    manager: kwame-mensah
+    location: Hyderabad, India
+    country: IN
+    tz: Asia/Kolkata
+    tags: [observability, sre]
+  - name: Owen Gallagher
+    email: owen.gallagher@lanternfish.example
+    role: sre
+    manager: kwame-mensah
+    location: Cork, Ireland
+    country: IE
+    tz: Europe/Dublin
+    tags: [incident response, kubernetes]
+
+  # ── Product and design ──────────────────────────────────────
+  - name: Samuel Adeyemi
+    email: samuel.adeyemi@lanternfish.example
+    role: product-director
+    manager: elena-petrova
+    location: London, UK
+    country: GB
+    tz: Europe/London
+  - name: Clara Jensen
+    email: clara.jensen@lanternfish.example
+    role: senior-pm
+    manager: samuel-adeyemi
+    location: Copenhagen, Denmark
+    country: DK
+    tz: Europe/Copenhagen
+    tags: [billing, pricing]
+  - name: Rohan Iyer
+    email: rohan.iyer@lanternfish.example
+    role: product-manager
+    manager: samuel-adeyemi
+    location: Mumbai, India
+    country: IN
+    tz: Asia/Kolkata
+  - name: Valentina Rossi
+    email: valentina.rossi@lanternfish.example
+    role: product-manager
+    manager: samuel-adeyemi
+    location: Milan, Italy
+    country: IT
+    tz: Europe/Rome
+  - name: Camille Laurent
+    email: camille.laurent@lanternfish.example
+    role: design-director
+    manager: elena-petrova
+    location: Montreal, Canada
+    country: CA
+    tz: America/Toronto
+  - name: Tariq Hassan
+    email: tariq.hassan@lanternfish.example
+    role: design-manager
+    manager: camille-laurent
+    location: Amman, Jordan
+    country: JO
+    tz: Asia/Amman
+  - name: Mira Solberg
+    email: mira.solberg@lanternfish.example
+    role: senior-designer
+    manager: tariq-hassan
+    location: Oslo, Norway
+    country: NO
+    tz: Europe/Oslo
+    tags: [design systems, accessibility]
+  - name: Kenji Watanabe
+    email: kenji.watanabe@lanternfish.example
+    role: designer
+    manager: tariq-hassan
+    location: Tokyo, Japan
+    country: JP
+    tz: Asia/Tokyo
+  - name: Ana Ruiz
+    email: ana.ruiz@lanternfish.example
+    role: researcher
+    manager: tariq-hassan
+    location: Valparaiso, Chile
+    country: CL
+    tz: America/Santiago
+    tags: [interviews, usability]
+  - name: Open role
+    role: designer
+    manager: tariq-hassan
+    status: open
+    notes: Payments flows. Portfolio review with Mira and Kenji.
+  - name: Theo Marchetti
+    email: theo.marchetti@studio-nine.example
+    role: Brand Designer
+    employment: contractor
+    manager: camille-laurent
+    location: Rome, Italy
+    country: IT
+    tz: Europe/Rome
+
+  # ── Operations ──────────────────────────────────────────────
+  - name: Hannah Okoro
+    email: hannah.okoro@lanternfish.example
+    role: chief-of-staff
+    manager: grace-whitfield
+    location: Toronto, Canada
+    country: CA
+    tz: America/Toronto
+  - name: Lars Eriksen
+    email: lars.eriksen@lanternfish.example
+    role: program-manager
+    manager: grace-whitfield
+    location: Bergen, Norway
+    country: NO
+    tz: Europe/Oslo
+    tags: [planning, roadmaps]
+  - name: Isabel Moreno
+    email: isabel.moreno@lanternfish.example
+    role: program-manager
+    manager: grace-whitfield
+    location: Madrid, Spain
+    country: ES
+    tz: Europe/Madrid
+  - name: Dmitri Volkov
+    email: dmitri.volkov@lanternfish.example
+    role: tech-writer
+    manager: grace-whitfield
+    location: Tallinn, Estonia
+    country: EE
+    tz: Europe/Tallinn
+    tags: [docs, api reference]
+  - name: Zara Ahmed
+    email: zara.ahmed@lanternfish.example
+    role: People Partner
+    manager: grace-whitfield
+    location: Dubai, UAE
+    country: AE
+    tz: Asia/Dubai
+  - name: Ben Carter
+    email: ben.carter@lanternfish.example
+    role: Head of Customer Engineering
+    manager: grace-whitfield
+    location: Austin, USA
+    country: US
+    tz: America/Chicago
+  - name: Olivia Grant
+    email: olivia.grant@lanternfish.example
+    role: Solutions Engineer
+    manager: ben-carter
+    location: Sydney, Australia
+    country: AU
+    tz: Australia/Sydney
+  - name: Mateo Herrera
+    email: mateo.herrera@lanternfish.example
+    role: Solutions Engineer
+    manager: ben-carter
+    location: Bogota, Colombia
+    country: CO
+    tz: America/Bogota
+  - name: Ingrid Halvorsen
+    email: ingrid.halvorsen@northbank.example
+    role: Support Engineer
+    manager: ben-carter
+    extends: agency
+    location: Trondheim, Norway
+    country: NO
+    tz: Europe/Oslo
+  - name: Kofi Asante
+    email: kofi.asante@northbank.example
+    role: Support Engineer
+    manager: ben-carter
+    extends: agency
+    location: Kumasi, Ghana
+    country: GH
+    tz: Africa/Accra
+  - name: Sakura Mori
+    role: Intern, Customer Engineering
+    employment: intern
+    manager: ben-carter
+    location: Kyoto, Japan
+    country: JP
+    tz: Asia/Tokyo
+
+# Teams are optional and use Floorplan's group shape, so they hand over as
+# rooms. A person's `team:` joins them at 100%; list members here for splits.
+teams:
+  - name: Revenue Platform
+    color: "#2dd4bf"
+    lead: hana-kobayashi
+    teams:
+      - name: Next Gen
+        color: "#f472b6"
+        lead: sofia-lindqvist
+        owns: [Billing Core, Entitlements]
+        teams:
+          - name: Core
+            members: [{ person: ezra-nakamura, pct: 80 }, { person: jules-okafor, pct: 50 }]
+          - name: Migration
+            members: [marcus-bell, { person: jules-okafor, pct: 50 }]
+      - name: Partner Payouts
+        color: "#60a5fa"
+        lead: diego-salinas
+        owns: [Payout Ledger]
+        teams:
+          - name: Intake
+            members: [{ person: amara-diallo, pct: 80 }]
+          - name: Ledger
+            members: [{ person: caleb-stone, pct: 80 }, riya-kapoor]
+      - name: Royalties
+        color: "#a78bfa"
+        lead: yuki-tanabe
+        owns: [Royalty Runs]
+        members: [{ person: mateus-ferreira, pct: 80 }, lena-fischer, pavel-novak, lucia-romano]
+  - name: Platform Enablement
+    color: "#fbbf24"
+    lead: oskar-nowak
+    owns: [Build Tooling]
+    members: [ines-moreau, tobias-keller, nia-thompson]
+  - name: Data and Reporting
+    color: "#34d399"
+    lead: leila-farahani
+    owns: [Warehouse, Dashboards]
+    members: [bakari-otieno, sun-woo-park, fatima-zahra]

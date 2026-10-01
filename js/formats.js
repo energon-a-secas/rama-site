@@ -3,7 +3,7 @@
 // vCard per person. Every import lands as a raw document for normalizeOrg, so
 // there is still one gate. Pure: no DOM.
 
-import { str } from './core.js'
+import { str, fieldHref } from './core.js'
 import { CORE_KEYS } from './schema.js'
 
 /** RFC 4180: quoted fields, doubled quotes, CRLF or LF. Tab or semicolon separated works too. */
@@ -137,7 +137,7 @@ export function personToVcard(p, { org = '', team = '', manager = '', fields = {
     const v = p.extra[k]
     if (typeof v !== 'string') continue
     if (def.type === 'phone') lines.push(`TEL;TYPE=WORK:${vc(v)}`)
-    if (def.type === 'url') lines.push(`URL:${vc(v)}`)
+    else if (def.type === 'url' && fieldHref(def, v)) lines.push(`URL:${fieldHref(def, v)}`)
   }
   if (p.location || p.country) lines.push(`ADR;TYPE=WORK:;;;${vc(p.location)};;;${vc(p.country)}`)
   if (p.photo) lines.push(`PHOTO;VALUE=URI:${p.photo}`)

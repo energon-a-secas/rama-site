@@ -78,3 +78,17 @@ export function fromBase64Url(b64) {
 }
 
 export const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`
+
+/**
+ * A detail's value as a link, or '' when it is not one. A declared field's
+ * type and prefix decide (wiki: { type: url, prefix: https://wiki/people/ });
+ * an undeclared value links only when it is already an https URL.
+ */
+export function fieldHref(def, value) {
+  if (typeof value !== 'string' || !value) return ''
+  const type = def?.type || 'text'
+  if (type === 'email') return isEmail(value) ? `mailto:${value}` : ''
+  if (type === 'phone') return /^[+\d\s().-]{3,40}$/.test(value) ? `tel:${value.replace(/[^\d+]/g, '')}` : ''
+  if (def?.prefix) return safeUrl(def.prefix + encodeURIComponent(value))
+  return safeUrl(value)
+}

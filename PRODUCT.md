@@ -1,6 +1,6 @@
 # Rama: product one-pager
 
-**What it is:** Climb an org chart from your own seat to the top
+**What it is:** Navigate your organization, starting with you
 
 **Who it is for:** CHANGE ME: the specific person with the specific problem.
 
