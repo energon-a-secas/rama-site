@@ -11,6 +11,8 @@ import { normalizeTeams, teamsToDoc } from './teams.js'
 
 export const SCHEMA_VERSION = 1
 export const MAX_PEOPLE = 5000
+const MAX_PROFILE_DEPTH = 32
+const MAX_EXTENDS = 20
 
 export const CORE_KEYS = ['id', 'name', 'email', 'role', 'title', 'manager', 'dotted', 'team', 'location',
   'country', 'tz', 'employment', 'status', 'tags', 'photo', 'pronounced', 'notes', 'start', 'extends']
@@ -64,7 +66,10 @@ export function normalizeOrg(input) {
   model.notes = str(raw.notes, 8000)
   normalizeRoles(raw.roles, model, ctx)
   model.fields = normalizeFields(raw.fields, ctx)
-  const profiles = Object.fromEntries(ownEntries(raw.profiles))
+  const profiles = resolveProfiles(Object.fromEntries(ownEntries(raw.profiles)), ctx)
+  ctx.nearMemo = new Map()
+  ctx.nearWarned = new Set()
+  ctx.applyTeamProfile = (t, who) => applyTeamProfile(t, profiles, ctx, who)
 
   // Pass 1: people. A map (`people: { ada: {...} }`) reads as a list with ids.
   let list = raw.people
@@ -75,7 +80,6 @@ export function normalizeOrg(input) {
   const taken = new Set()
   const nextSuffix = new Map() // base id -> the next suffix to try, so many duplicates stay linear
   const pending = []
-  ctx.profileCache = new Map()
   list.slice(0, MAX_PEOPLE).forEach((entry, i) => {
     const e = typeof entry === 'string' || typeof entry === 'number' ? { name: String(entry) } : entry
     if (!e || typeof e !== 'object' || Array.isArray(e)) { ctx.error(`people[${i}] is not a person`); return }
@@ -121,17 +125,19 @@ export function normalizeOrg(input) {
 
 function normalizeRoles(raw, model, ctx) {
   let entries = []
-  if (Array.isArray(raw)) entries = raw.map((r) => [r?.id ?? slug(r?.title), r])
+  // A role a slug cannot name (a non-Latin title) gets an id from its own text, never dropped.
+  const idOf = (rawId) => slug(rawId) || (str(rawId, 120) ? `r-${hash(str(rawId, 120)).toString(36)}` : '')
+  if (Array.isArray(raw)) entries = raw.map((r) => (typeof r === 'string' ? [r, { title: r }] : [r?.id ?? r?.title, r]))
   else if (raw != null) entries = ownEntries(raw)
   if (raw != null && !Array.isArray(raw) && typeof raw !== 'object') { ctx.error('roles: must be a map of id: { title, track, level }'); return }
   for (const [rawId, r] of entries.slice(0, 500)) {
-    const id = slug(rawId)
+    const id = idOf(rawId)
     if (!id) continue
     const given = typeof r === 'string' ? { title: r } : (r && typeof r === 'object' ? r : {})
     const base = model.roles[id] || {}
     const title = str(given.title, 120) || base.title || id.replace(/-/g, ' ')
     let track = str(given.track, 20).toLowerCase() || base.track || guessTrack(title)
-    if (!TRACKS.includes(track)) { ctx.warn(`Role "${id}": track "${track}" is not one of ${TRACKS.join(', ')}`); track = guessTrack(title) }
+    if (!TRACKS.includes(track)) { ctx.warn(`Role "${id}": track "${track}" is not one of ${TRACKS.join(', ')}`); track = base.track || guessTrack(title) }
     model.roles[id] = { id, title, track, level: str(given.level ?? base.level, 20), color: safeColor(given.color, base.color || ''), notes: str(given.notes, 2000) }
     if (!model.declaredRoles.includes(id)) model.declaredRoles.push(id)
   }
@@ -150,28 +156,59 @@ function normalizeFields(raw, ctx) {
 }
 
 /**
- * A person's profiles, resolved left to right. Each profile is resolved once per
- * document and cached: a diamond of profiles that extend the same parents was
- * exponential without it, and a 30-line document could hang the tab.
+ * Every profile resolved once, in the order the document declares them, before
+ * any person reads one. Resolving on demand made a cycle come out differently
+ * depending on who extended it first, and a diamond of shared parents was
+ * exponential. Chains stop at 32 deep, so a long chain warns instead of
+ * overflowing the stack.
  */
-function applyProfiles(entry, profiles, ctx, who) {
-  const names = [].concat(entry.extends ?? []).slice(0, 20).map((n) => str(n, 60)).filter(Boolean)
-  if (!names.length) return entry
-  const cache = ctx.profileCache || (ctx.profileCache = new Map())
+function resolveProfiles(raw, ctx) {
+  const done = new Map()
   const resolve = (name, stack) => {
-    if (cache.has(name)) return cache.get(name)
+    if (done.has(name)) return done.get(name)
+    const p = Object.hasOwn(raw, name) ? raw[name] : null
+    if (!p || typeof p !== 'object' || Array.isArray(p)) return null
     if (stack.includes(name)) { ctx.warn(`Profile cycle: ${[...stack, name].join(' > ')}`); return {} }
-    const p = Object.hasOwn(profiles, name) ? profiles[name] : null
-    if (!p || typeof p !== 'object' || Array.isArray(p)) { ctx.warn(`${who} extends unknown profile "${name}"`); return {} }
+    if (stack.length >= MAX_PROFILE_DEPTH) { ctx.warn(`Profiles extend each other more than ${MAX_PROFILE_DEPTH} deep; "${name}" is read without its parents`); return {} }
+    const parents = [].concat(p.extends ?? []).map((n) => str(n, 60)).filter(Boolean)
+    if (parents.length > MAX_EXTENDS) ctx.warn(`Profile "${name}" extends ${parents.length} profiles; the first ${MAX_EXTENDS} are read`)
     let merged = {}
-    for (const parent of [].concat(p.extends ?? []).slice(0, 20)) merged = mergeProfile(merged, resolve(str(parent, 60), [...stack, name]))
+    for (const parent of parents.slice(0, MAX_EXTENDS)) {
+      const r = resolve(parent, [...stack, name])
+      if (r) merged = mergeProfile(merged, r)
+      else ctx.warn(`Profile "${name}" extends unknown profile "${parent}"`)
+    }
     merged = mergeProfile(merged, p)
-    cache.set(name, merged)
+    done.set(name, merged)
     return merged
   }
+  for (const name of Object.keys(raw)) resolve(name, [])
+  return done
+}
+
+/** A person's profiles, applied left to right; the person's own keys win. */
+function applyProfiles(entry, profiles, ctx, who) {
+  const names = [].concat(entry.extends ?? []).map((n) => str(n, 60)).filter(Boolean)
+  if (!names.length) return entry
+  if (names.length > MAX_EXTENDS) ctx.warn(`${who} extends ${names.length} profiles; the first ${MAX_EXTENDS} are read`)
   let base = {}
-  for (const n of names) base = mergeProfile(base, resolve(n, []))
+  for (const n of names.slice(0, MAX_EXTENDS)) {
+    if (profiles.has(n)) base = mergeProfile(base, profiles.get(n))
+    else ctx.warn(`${who} extends unknown profile "${n}"`)
+  }
   return mergeProfile(base, entry)
+}
+
+const asList = (v) => (v == null ? [] : Array.isArray(v) ? v : [v])
+
+/** Floorplan's rule for a group: scalars override, `members` and `owns` add up. */
+function applyTeamProfile(t, profiles, ctx, who) {
+  if (!t || typeof t !== 'object' || Array.isArray(t) || t.extends == null) return t
+  const base = applyProfiles({ extends: t.extends }, profiles, ctx, who)
+  const out = mergeProfile(base, t)
+  out.owns = [...new Set([...asList(base.owns), ...asList(t.owns)])]
+  out.members = [...asList(base.members), ...asList(t.members)]
+  return out
 }
 
 const asTags = (v) => (Array.isArray(v) ? v : typeof v === 'string' ? v.split(/[,;|]/).map((t) => t.trim()).filter(Boolean) : null)
@@ -222,8 +259,27 @@ function norm(value, known, aliases, fallback, label, who, ctx) {
   return fallback
 }
 
+const TEXT_KEYS = ['name', 'role', 'title', 'location', 'country', 'tz', 'employment', 'status', 'photo', 'pronounced', 'notes', 'start']
+
+/** A real zone, by asking Intl when there is one; offsets like +2 and -3:30 by shape. */
+function validZone(tz) {
+  if (/^[+-]\d{1,2}(:\d{2})?$/.test(tz) || tz === 'UTC') return true
+  if (!/^[A-Za-z_]+(\/[A-Za-z0-9_+-]+)+$/.test(tz)) return false
+  try { new Intl.DateTimeFormat('en', { timeZone: tz }); return true } catch { return false }
+}
+
+/** YYYY-MM-DD and a day that exists: 2024-02-30 is not a date. */
+function validDate(s) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false
+  const d = new Date(`${s}T00:00:00Z`)
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s
+}
+
 function buildPerson(e, i, model, ctx) {
   const who = e.name ? str(e.name, 80) : `people[${i}]`
+  for (const k of TEXT_KEYS) {
+    if (e[k] != null && typeof e[k] === 'object' && !(e[k] instanceof Date)) ctx.warn(`${who}: ${k} should be text, not a ${Array.isArray(e[k]) ? 'list' : 'map'}, so it was left out`)
+  }
   const status = norm(e.status, STATUS, STATUS_ALIASES, 'active', 'status', who, ctx)
   const roleRaw = str(e.role, 120)
   let title = str(e.title, 120)
@@ -247,10 +303,11 @@ function buildPerson(e, i, model, ctx) {
   let country = str(e.country, 40).toUpperCase()
   if (e.country != null && e.country !== '' && !/^[A-Z]{2}$/.test(country)) { ctx.warn(`${who}: country "${str(e.country, 40)}" should be a two-letter code (CL, US, DE)`); country = '' }
   let tz = str(e.tz, 60)
-  if (tz && !/^([A-Za-z_]+(\/[A-Za-z0-9_+-]+)+|UTC|[+-]\d{1,2}(:\d{2})?)$/.test(tz)) { ctx.warn(`${who}: tz "${tz}" is not an IANA zone (America/Santiago) or an offset (+2)`); tz = '' }
+  if (tz && !validZone(tz)) { ctx.warn(`${who}: tz "${tz}" is not an IANA zone (America/Santiago) or an offset (+2)`); tz = '' }
   const photo = safeUrl(e.photo)
   if (e.photo && !photo) ctx.warn(`${who}: photo must be an https:// URL`)
-  const start = /^\d{4}-\d{2}-\d{2}$/.test(dateStr(e.start)) ? dateStr(e.start) : ''
+  const start = validDate(dateStr(e.start)) ? dateStr(e.start) : ''
+  if (e.start != null && e.start !== '' && !start) ctx.warn(`${who}: start "${str(dateStr(e.start), 40)}" is not a date written YYYY-MM-DD`)
   const employment = norm(e.employment, EMPLOYMENT, EMPLOYMENT_ALIASES, 'employee', 'employment', who, ctx)
 
   const person = {
@@ -259,14 +316,18 @@ function buildPerson(e, i, model, ctx) {
     employment, status, tags: tagList(e.tags), photo, pronounced: str(e.pronounced, 120),
     notes: str(e.notes, 4000), start, extra: {},
   }
-  for (const [k, v] of ownEntries(e)) {
-    if (KNOWN_KEYS.includes(k)) continue
+  for (const [rawKey, v] of ownEntries(e)) {
+    // The key is cleaned before any check: " name" and " __proto__" are name and __proto__.
+    const k = str(rawKey, 60)
+    if (!k || BAD_KEYS.has(k) || KNOWN_KEYS.includes(k)) continue
     const value = extraValue(v)
     if (value == null || value === '' || (Array.isArray(value) && !value.length)) continue
-    person.extra[str(k, 60)] = value
+    person.extra[k] = value
     if (!Object.hasOwn(model.fields, k) && k.length > 3) {
-      const near = KNOWN_KEYS.find((c) => editDistance(k.toLowerCase(), c.toLowerCase(), 2) <= 2)
-      if (near) ctx.warn(`${who}: "${k}" is kept as a detail. Did you mean "${near}"?`)
+      if (!ctx.nearMemo.has(k)) ctx.nearMemo.set(k, KNOWN_KEYS.find((c) => editDistance(k.toLowerCase(), c.toLowerCase(), 2) <= 2) || '')
+      const near = ctx.nearMemo.get(k)
+      // Once per key: a typo in a 5000-row import is one warning, not 5000.
+      if (near && !ctx.nearWarned.has(k)) { ctx.nearWarned.add(k); ctx.warn(`${who}: "${k}" is kept as a detail. Did you mean "${near}"?`) }
     }
   }
   return person
@@ -344,7 +405,8 @@ export function orgToDoc(model) {
 
 function personToDoc(p, model) {
   const out = { name: p.name }
-  if (p.id !== slug(p.name)) out.id = p.id
+  // An open role's id is never derived from its name ("Open role"), so it always travels.
+  if (p.id !== slug(p.name) || p.status === 'open') out.id = p.id
   if (p.email.length) out.email = p.email.length === 1 ? p.email[0] : [...p.email]
   if (p.role) {
     out.role = p.role

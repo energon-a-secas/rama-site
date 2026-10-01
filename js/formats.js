@@ -12,6 +12,7 @@ export function parseCsv(text) {
   let row = []
   let field = ''
   let quoted = false
+  let openedAt = 0
   const src = String(text).replace(/^\uFEFF/, '')
   const delim = sniffDelimiter(src)
   for (let i = 0; i < src.length; i++) {
@@ -20,7 +21,7 @@ export function parseCsv(text) {
       if (c === '"' && src[i + 1] === '"') { field += '"'; i++ }
       else if (c === '"') quoted = false
       else field += c
-    } else if (c === '"' && field === '') quoted = true
+    } else if (c === '"' && field === '') { quoted = true; openedAt = rows.length + 1 }
     else if (c === delim) { row.push(field); field = '' }
     else if (c === '\n' || c === '\r') {
       if (c === '\r' && src[i + 1] === '\n') i++
@@ -29,6 +30,8 @@ export function parseCsv(text) {
       row = []
     } else field += c
   }
+  // A quote that never closes would swallow the rest of the file into one cell, silently.
+  if (quoted) throw new Error(`The CSV has a quote that never closes, starting on row ${openedAt}`)
   row.push(field)
   if (row.some((f) => f.trim() !== '')) rows.push(row)
   return rows
@@ -38,7 +41,10 @@ export function parseCsv(text) {
 function sniffDelimiter(src) {
   const counts = { ',': 0, '\t': 0, ';': 0 }
   let quoted = false
+  let started = false
   for (const c of src) {
+    if (!started && (c === '\n' || c === '\r' || c === ' ')) continue // blank lines before the header
+    started = true
     if (c === '"') quoted = !quoted
     else if (!quoted && (c === '\n' || c === '\r')) break
     else if (!quoted && c in counts) counts[c]++
@@ -63,6 +69,15 @@ const COLUMN = {
 }
 
 /** An unknown header as a detail key: "Cost Centre" is costCentre, "Teléfono" is telefono, and a header with no Latin letters keeps its own text. */
+/** Header aliases compared on letters and digits only: Full_Name, full-name and FullName are one header. */
+const squash = (h) => h.toLowerCase().replace(/[^a-z0-9]/g, '')
+const COLUMN_SQUASHED = () => {
+  const out = {}
+  for (const [k, v] of Object.entries(COLUMN)) out[squash(k)] = v
+  Object.assign(out, { displayname: 'name', preferredname: 'name', fullname: 'name', jobtitle: 'title', businesstitle: 'title', workemail: 'email', emailaddress: 'email', reportsto: 'manager', managername: 'manager', manageremail: 'manager', managerid: 'manager', hiredate: 'start', startdate: 'start', employeeid: 'id', workertype: 'employment', employmenttype: 'employment' })
+  return out
+}
+
 const camel = (h, i) => {
   const plain = h.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').trim()
   const key = plain.replace(/[^A-Za-z0-9]+(.)?/g, (_, ch) => (ch ? ch.toUpperCase() : '')).replace(/^./, (c) => c.toLowerCase()).slice(0, 60)
@@ -73,16 +88,18 @@ const camel = (h, i) => {
 export function csvToDoc(text, title = 'Imported org') {
   const rows = parseCsv(text)
   if (rows.length < 2) throw new Error('A CSV needs a header row and at least one person')
+  const aliases = COLUMN_SQUASHED()
   const header = rows[0].map((h, i) => {
-    // manager_name and manager-name read like "manager name": Rama's own export comes back in clean.
-    const k = h.trim().toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ')
-    return Object.hasOwn(COLUMN, k) ? COLUMN[k] : camel(h, i)
+    // manager_name, Manager-Name and ManagerName all read as "manager name": Rama's own export comes back in clean.
+    const k = squash(h)
+    return Object.hasOwn(aliases, k) ? aliases[k] : camel(h, i)
   })
   if (!header.includes('name')) throw new Error('The CSV header has no name column')
   const people = rows.slice(1).map((r) => {
     const p = {}
     header.forEach((k, i) => {
-      const v = (r[i] ?? '').trim()
+      // Undo the formula guard orgToCsv adds, so +2, a phone number or an @handle comes back as written.
+      const v = (r[i] ?? '').trim().replace(/^'(?=[=+\-@])/, '')
       if (!v || !k || Object.hasOwn(p, k)) return
       p[k] = k === 'tags' || k === 'dotted' ? v.split(/[;|]/).map((t) => t.trim()).filter(Boolean) : v
     })
@@ -100,7 +117,10 @@ const cell = (v) => {
 
 export function orgToCsv(model) {
   const fixed = ['id', 'name', 'email', 'title', 'manager', 'manager_name', 'team', 'location', 'country', 'tz', 'employment', 'status', 'tags', 'start']
-  const extras = [...new Set(model.people.flatMap((p) => Object.keys(p.extra)))].filter((k) => !CORE_KEYS.includes(k) && !fixed.includes(k))
+  // The 200 most used detail keys: a document with thousands of one-off keys would otherwise make a file of thousands of columns.
+  const use = new Map()
+  for (const p of model.people) for (const k of Object.keys(p.extra)) if (!CORE_KEYS.includes(k) && !fixed.includes(k)) use.set(k, (use.get(k) || 0) + 1)
+  const extras = [...use].sort((a, b) => b[1] - a[1]).slice(0, 200).map(([k]) => k)
   const byId = new Map(model.people.map((p) => [p.id, p]))
   const teamName = new Map(model.teams.map((t) => [t.id, t.name]))
   const cols = [...fixed, ...extras]
@@ -108,21 +128,33 @@ export function orgToCsv(model) {
   const lines = [cols.map(cell).join(',')]
   for (const p of model.people) {
     const row = { ...p.extra, ...p, email: p.email[0] || '', manager_name: byId.get(p.manager)?.name || '', team: teamName.get(p.team) || '' }
-    lines.push(cols.map((c) => cell(Object.hasOwn(p.extra, c) && !fixed.includes(c) ? p.extra[c] : row[c])).join(','))
+    // Own keys only: a detail named toString must not print a function's source.
+    lines.push(cols.map((c) => cell(Object.hasOwn(p.extra, c) && !fixed.includes(c) ? p.extra[c] : Object.hasOwn(row, c) ? row[c] : '')).join(','))
   }
   return lines.join('\r\n') + '\r\n'
 }
 
-const mm = (s) => str(s, 80).replace(/["<>]/g, "'").replace(/[\r\n]+/g, ' ')
+/** A Mermaid label: quotes, angle brackets and backticks (a backtick starts a markdown string) become apostrophes. */
+const mm = (s) => str(s, 80).replace(/["<>`]/g, "'").replace(/[\r\n]+/g, ' ')
+/** Mermaid refuses a diagram over 50,000 characters by default; stop short of it. */
+const MERMAID_MAX = 45000
 
 /** The reporting lines as a Mermaid flowchart, for a README or a wiki page. */
 export function orgToMermaid(model, limit = 400) {
-  const people = model.people.slice(0, limit)
-  const ids = new Map(people.map((p, i) => [p.id, `p${i}`]))
-  const lines = ['flowchart TB']
-  for (const p of people) lines.push(`  ${ids.get(p.id)}["${mm(p.name)}${p.title ? `<br/><small>${mm(p.title)}</small>` : ''}"]`)
-  for (const p of people) if (p.manager && ids.has(p.manager)) lines.push(`  ${ids.get(p.manager)} --> ${ids.get(p.id)}`)
-  if (model.people.length > limit) lines.push(`  %% ${model.people.length - limit} more people left out`)
+  const nodes = []
+  const ids = new Map()
+  let size = 0
+  for (const p of model.people.slice(0, limit)) {
+    const line = `  p${ids.size}["${mm(p.name)}${p.title ? `<br/><small>${mm(p.title)}</small>` : ''}"]`
+    const edge = p.manager ? 30 : 0
+    if (size + line.length + edge > MERMAID_MAX) break
+    ids.set(p.id, `p${ids.size}`)
+    nodes.push(line)
+    size += line.length + 1 + edge
+  }
+  const lines = ['flowchart TB', ...nodes]
+  for (const p of model.people) if (ids.has(p.id) && p.manager && ids.has(p.manager)) lines.push(`  ${ids.get(p.manager)} --> ${ids.get(p.id)}`)
+  if (model.people.length > ids.size) lines.push(`  %% ${model.people.length - ids.size} more people left out`)
   return lines.join('\n') + '\n'
 }
 

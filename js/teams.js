@@ -8,11 +8,15 @@
 import { slug, safeColor, str, hash } from './core.js'
 
 const MAX_TEAMS = 1000
+const MAX_MEMBERS = 500
 const MAX_DEPTH = 6
+/** One value or a list of them: Floorplan accepts `owns: Billing` as readily as `owns: [Billing]`. */
+const asList = (v) => (v == null ? [] : Array.isArray(v) ? v : [v])
 const BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
 
 export function normalizeTeams(raw, pending, find, ctx) {
   const teams = []
+  let capped = false
   const ids = new Set()
   const byKey = new Map()
   // Empty keys are skipped: every non-Latin name slugs to '', and one '' key folded them all into one team.
@@ -24,8 +28,9 @@ export function normalizeTeams(raw, pending, find, ctx) {
     if (list == null) return
     if (!Array.isArray(list)) { ctx.error('teams: must be a list'); return }
     list.forEach((entry, i) => {
-      if (teams.length >= MAX_TEAMS) return
-      const t = typeof entry === 'string' ? { name: entry } : entry
+      if (teams.length >= MAX_TEAMS) { if (!capped) { capped = true; ctx.warn(`Only the first ${MAX_TEAMS} teams are read`) } return }
+      const plain = typeof entry === 'string' ? { name: entry } : entry
+      const t = ctx.applyTeamProfile ? ctx.applyTeamProfile(plain, `Team ${str(plain?.name, 80) || i + 1}`) : plain
       if (!t || typeof t !== 'object' || Array.isArray(t)) { ctx.warn(`teams[${i}] is not a team`); return }
       const name = str(t.name, 120)
       if (!name) { ctx.warn('A team with no name was skipped'); return }
@@ -41,10 +46,12 @@ export function normalizeTeams(raw, pending, find, ctx) {
       if (t.lead != null && !lead) ctx.warn(`Team ${name}: lead "${str(t.lead, 80)}" is not in people`)
       const team = {
         id, name, parent, color: safeColor(t.color), lead: lead || '',
-        owns: (Array.isArray(t.owns) ? t.owns : []).map((o) => str(o, 80)).filter(Boolean).slice(0, 20),
+        owns: asList(t.owns).map((o) => str(o, 80)).filter(Boolean).slice(0, 20),
         notes: str(t.notes, 4000), members: [], floorplan: floorplanKeys(t),
       }
-      for (const m of Array.isArray(t.members) ? t.members.slice(0, 500) : []) {
+      const given = asList(t.members)
+      if (given.length > MAX_MEMBERS) ctx.warn(`Team ${name}: only the first ${MAX_MEMBERS} members are read`)
+      for (const m of given.slice(0, MAX_MEMBERS)) {
         const { ref, pct, bad } = readMember(m)
         if (bad) ctx.warn(`Team ${name}: share "${str(bad, 20)}" is not a number from 1 to 100, so it counts as 100`)
         const person = ref != null ? find(ref) : null
@@ -66,6 +73,7 @@ export function normalizeTeams(raw, pending, find, ctx) {
     if (team == null || team === '') continue
     const ref = str(team, 120)
     let t = lookup(ref)
+    if (!t && ref && teams.length >= MAX_TEAMS && !capped) { capped = true; ctx.warn(`Only the first ${MAX_TEAMS} teams are read, so some people keep no team`) }
     if (!t && ref && teams.length < MAX_TEAMS) {
       let id = idFor(ref)
       while (ids.has(id)) id += '-x'
@@ -85,7 +93,8 @@ export function normalizeTeams(raw, pending, find, ctx) {
 function readMember(m) {
   if (typeof m === 'string' || typeof m === 'number') return { ref: String(m), pct: 100 }
   if (!m || typeof m !== 'object' || Array.isArray(m)) return { ref: null, pct: 100 }
-  if (m.person != null) return { ref: m.person, ...share(m.pct) }
+  const ref = m.person ?? m.id ?? m.name
+  if (ref != null) return { ref, ...share(m.pct ?? m.percent ?? m.share) }
   const keys = Object.keys(m).filter((k) => !BAD_KEYS.has(k))
   if (keys.length === 1) return { ref: keys[0], ...share(m[keys[0]]) }
   return { ref: null, pct: 100 }
@@ -104,10 +113,19 @@ function floorplanKeys(t) {
   const out = {}
   const cap = Number(t.capacity)
   if (Number.isFinite(cap) && cap > 0) out.capacity = Math.min(200, Math.round(cap))
-  if (Array.isArray(t.needs)) out.needs = t.needs.map((n) => str(n, 40)).filter(Boolean).slice(0, 20)
+  const needs = asList(t.needs).map((n) => str(n, 40)).filter(Boolean).slice(0, 20)
+  if (needs.length) out.needs = needs
+  // Only real numbers travel: x and y from 0, w and h above 0. A partial layout is fine, Floorplan fills the rest.
   const l = t.layout
-  if (l && typeof l === 'object' && ['x', 'y', 'w', 'h'].every((k) => Number.isFinite(Number(l[k])))) {
-    out.layout = { x: Number(l.x), y: Number(l.y), w: Number(l.w), h: Number(l.h) }
+  if (l && typeof l === 'object' && !Array.isArray(l)) {
+    const layout = {}
+    for (const k of ['x', 'y', 'w', 'h']) {
+      const raw = l[k]
+      if (raw == null || raw === '' || typeof raw === 'boolean') continue
+      const n = Number(raw)
+      if (Number.isFinite(n) && (k === 'w' || k === 'h' ? n > 0 : n >= 0)) layout[k] = n
+    }
+    if (Object.keys(layout).length) out.layout = layout
   }
   return out
 }

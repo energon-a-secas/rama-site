@@ -2,9 +2,13 @@
 // Shared by the schema, the tree and the exports. No DOM, so Node can test
 // everything that imports only from here.
 
+/** Letters NFKD leaves whole: without these, "Łukasz" and "Søren" lose a letter in their ids. */
+const FOLD = { ł: 'l', Ł: 'L', ø: 'o', Ø: 'O', đ: 'd', Đ: 'D', ß: 'ss', æ: 'ae', Æ: 'AE', œ: 'oe', Œ: 'OE', þ: 'th', Þ: 'Th', ð: 'd', Ð: 'D', ħ: 'h', Ħ: 'H', ı: 'i' }
+
 /** A stable id from a name: lowercase ascii, hyphens, max 48 chars, the same cap as Floorplan so ids survive the handoff. */
 export function slug(s) {
   return String(s ?? '')
+    .replace(/[łŁøØđĐßæÆœŒþÞðÐħĦı]/g, (c) => FOLD[c])
     .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
     .slice(0, 48).replace(/-+$/, '')
@@ -27,7 +31,7 @@ export function str(v, max = 200) {
   else if (typeof v === 'string') s = v
   else return ''
   s = s.replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim()
-  if (s.length > max) s = s.slice(0, max)
+  if (s.length > max) s = s.slice(0, max).trimEnd()
   if (/[\ud800-\udbff]$/.test(s)) s = s.slice(0, -1)
   return typeof s.toWellFormed === 'function' ? s.toWellFormed() : s
 }
@@ -39,11 +43,12 @@ export function safeUrl(v, { mailto = false, tel = false } = {}) {
   if (!s) return ''
   if (/^https:\/\/[^\s"'<>]+$/i.test(s)) return s
   if (mailto && /^mailto:[^\s"'<>]+$/i.test(s)) return s
-  if (tel && /^tel:[+\d\s().-]+$/i.test(s)) return s
+  if (tel && /^tel:[+\d ().-]+$/i.test(s)) return s
   return ''
 }
 
-export const isEmail = (s) => typeof s === 'string' && s.length <= 254 && /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/.test(s)
+/** A plain address: no ?, &, = or % that could add a bcc or a body to a mailto: link. */
+export const isEmail = (s) => typeof s === 'string' && s.length <= 254 && /^[A-Za-z0-9._+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/.test(s)
 
 /** 32-bit FNV-1a: a hue per person that survives reloads and exports. */
 export function hash(s) {
@@ -52,12 +57,19 @@ export function hash(s) {
   return h >>> 0
 }
 
+/** First letters of the first and last word, whole graphemes; an emoji counts, punctuation never does. */
+const MARK = /\p{L}|\p{Extended_Pictographic}/u
 export function initials(name = '') {
-  const parts = String(name).replace(/\(.*?\)/g, '').trim().split(/\s+/).filter(Boolean)
-  if (!parts.length) return '?'
-  const first = [...parts[0]][0] || ''
-  const last = parts.length > 1 ? [...parts[parts.length - 1]][0] : ''
-  return (first + last).toUpperCase()
+  const words = String(name).replace(/\(.*?\)/g, '').trim().split(/\s+/).filter((w) => MARK.test(w))
+  if (!words.length) return '?'
+  const seg = typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null
+  const firstLetter = (w) => {
+    const from = w.slice(w.search(MARK))
+    const g = seg ? seg.segment(from)[Symbol.iterator]().next().value?.segment || '' : [...from][0] || ''
+    const up = g.toUpperCase()
+    return up.length > g.length ? g : up // ß stays ß rather than becoming SS
+  }
+  return firstLetter(words[0]) + (words.length > 1 ? firstLetter(words[words.length - 1]) : '')
 }
 
 /** Levenshtein distance, capped: only used to suggest a key someone meant to type. */
@@ -84,7 +96,8 @@ export function toBase64Url(text) {
 
 export function fromBase64Url(b64) {
   const bin = atob(String(b64).replace(/-/g, '+').replace(/_/g, '/'))
-  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)))
+  // ignoreBOM keeps a leading U+FEFF, so encode then decode gives back exactly what went in.
+  return new TextDecoder('utf-8', { ignoreBOM: true }).decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)))
 }
 
 export const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`
@@ -98,7 +111,7 @@ export function fieldHref(def, value) {
   if (typeof value !== 'string' || !value) return ''
   const type = def?.type || 'text'
   if (type === 'email') return isEmail(value) ? `mailto:${value}` : ''
-  if (type === 'phone') return /^[+\d\s().-]{3,40}$/.test(value) ? `tel:${value.replace(/[^\d+]/g, '')}` : ''
+  if (type === 'phone') return /^[+\d ().-]{3,40}$/.test(value) && (value.match(/\d/g) || []).length >= 3 ? `tel:${value.replace(/[^\d+]/g, '')}` : ''
   if (def?.prefix) {
     try { return safeUrl(def.prefix + encodeURIComponent(value)) } catch { return '' }
   }

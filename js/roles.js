@@ -52,8 +52,10 @@ const SUPPORT_WORDS = /\b(assistant|coordinator|chief of staff|program manager|w
 
 /** A free-text title's track, for people whose role is not in the catalogue. */
 export function guessTrack(title = '') {
-  // Before the exec words, which would claim it by "chief".
-  if (/\bchief of staff\b/i.test(title)) return 'support'
+  // Before the exec words, which would claim these by "chief" or "CEO".
+  if (/\b(chief of staff|assistant)\b/i.test(title)) return 'support'
+  // The catalogue files product and project managers as ic, not people managers.
+  if (/\b(product|project) (manager|owner)\b/i.test(title)) return 'ic'
   if (EXEC_WORDS.test(title)) return 'exec'
   if (SUPPORT_WORDS.test(title)) return 'support'
   if (MGMT_WORDS.test(title)) return 'management'
