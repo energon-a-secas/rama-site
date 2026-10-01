@@ -315,6 +315,11 @@ body[data-view="overview"] .stage { overflow: hidden; cursor: default; }
 ::view-transition-old(*):only-child { animation: vt-out 200ms ease-in both; }
 ::view-transition-old(wires) { animation: vt-fade 140ms ease-in both; }
 ::view-transition-new(wires) { animation: vt-fade 420ms 300ms ease-out reverse both; }
+/* The page's frame rides above the cards in flight (nav.js liftFrame). */
+::view-transition-group(rama-frame-0),
+::view-transition-group(rama-frame-1),
+::view-transition-group(rama-frame-2),
+::view-transition-group(rama-frame-3) { z-index: 20; }
 @keyframes vt-in { from { opacity: 0; transform: translateY(12px) scale(0.95); } }
 @keyframes vt-out { to { opacity: 0; transform: scale(0.95); } }
 @keyframes vt-fade { to { opacity: 0; } }
@@ -334,7 +339,7 @@ body[data-view="overview"] .stage { overflow: hidden; cursor: default; }
   pointer-events: none;
 }
 .overview__bar > * { pointer-events: auto; }
-.overview__color { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-secondary); font-size: var(--text-sm); }
+.overview__color { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-secondary); font-size: var(--text-sm); white-space: nowrap; }
 .select--sm { min-height: 34px; padding: 0 var(--space-2); }
 .legend {
   display: flex;
@@ -356,12 +361,17 @@ body[data-view="overview"] .stage { overflow: hidden; cursor: default; }
 
 .overview__svg { width: 100%; height: 100%; cursor: grab; touch-action: none; }
 .overview__svg:active { cursor: grabbing; }
-.ov-ring { fill: none; stroke: rgb(148 163 184 / 9%); stroke-dasharray: 2 7; }
-.ov-link { fill: none; stroke: rgb(148 163 184 / 17%); stroke-width: 1; }
+.ov-wedge { fill: color-mix(in srgb, var(--c) 7%, transparent); stroke: color-mix(in srgb, var(--c) 28%, transparent); stroke-width: 1; vector-effect: non-scaling-stroke; cursor: pointer; transition: fill var(--dur); }
+.ov-wedge:hover { fill: color-mix(in srgb, var(--c) 13%, transparent); }
+.ov-rim { fill: var(--c); font-size: calc(13px * var(--u, 1)); font-weight: 700; letter-spacing: 0.01em; paint-order: stroke; stroke: rgb(4 7 20 / 92%); stroke-width: calc(4px * var(--u, 1)); pointer-events: none; }
+.ov-rim__n { fill: var(--text-muted); font-weight: 600; }
+.ov-ring { fill: none; stroke: rgb(148 163 184 / 9%); stroke-dasharray: 2 7; vector-effect: non-scaling-stroke; }
+.ov-link { fill: none; stroke: rgb(148 163 184 / 20%); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .ov-dot {
   fill: var(--c);
   stroke: rgb(4 7 20 / 90%);
   stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
   cursor: pointer;
   transform-box: fill-box;
   transform-origin: center;
@@ -378,28 +388,29 @@ body[data-view="overview"] .stage { overflow: hidden; cursor: default; }
 .ov-path {
   fill: none;
   stroke: var(--accent-bright);
-  stroke-width: 3;
+  stroke-width: calc(3px * var(--u, 1));
   stroke-linecap: round;
   stroke-dasharray: var(--len, 2000);
   stroke-dashoffset: var(--len, 2000);
   filter: drop-shadow(0 0 6px rgb(52 211 153 / 75%));
   animation: draw 760ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
-.ov-path--pulse { stroke: #ecfdf5; stroke-width: 2; stroke-dasharray: 2 22; stroke-dashoffset: 0; filter: none; animation: flow 1.4s linear infinite; }
+.ov-path--pulse { stroke: #ecfdf5; stroke-width: calc(2px * var(--u, 1)); stroke-dasharray: calc(2px * var(--u, 1)) calc(22px * var(--u, 1)); stroke-dashoffset: 0; filter: none; animation: flow-u 1.4s linear infinite; }
+@keyframes flow-u { to { stroke-dashoffset: calc(-24px * var(--u, 1)); } }
 @keyframes draw { to { stroke-dashoffset: 0; } }
-.ov-halo { fill: none; stroke: var(--accent-bright); stroke-width: 1.5; transform-box: fill-box; transform-origin: center; animation: halo 2.4s ease-out infinite; }
+.ov-halo { fill: none; stroke: var(--accent-bright); stroke-width: 1.5; vector-effect: non-scaling-stroke; transform-box: fill-box; transform-origin: center; animation: halo 2.4s ease-out infinite; }
 @keyframes halo { from { opacity: 0.8; transform: scale(0.6); } to { opacity: 0; transform: scale(1.5); } }
 .ov-label {
   fill: var(--text-secondary);
-  font-size: 12px;
+  font-size: calc(12px * var(--u, 1));
   font-weight: 600;
   paint-order: stroke;
   stroke: rgb(4 7 20 / 92%);
-  stroke-width: 4px;
+  stroke-width: calc(4px * var(--u, 1));
   stroke-linejoin: round;
   pointer-events: none;
 }
-.ov-label--top { fill: var(--text-primary); font-size: 15px; }
+.ov-label--top { fill: var(--text-primary); font-size: calc(14px * var(--u, 1)); }
 .ov-label--me, .ov-label--focus { fill: var(--accent-bright); }
 .tip {
   position: absolute;

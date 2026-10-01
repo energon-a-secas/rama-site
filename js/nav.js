@@ -38,11 +38,26 @@ export function go(id, { push = true, focusDom = false } = {}) {
   }
   const after = () => { if (focusDom) focusEl()?.focus({ preventScroll: true }) }
   if (document.startViewTransition && !prefersReducedMotion() && !document.hidden) {
-    document.startViewTransition(apply).finished.finally(after)
+    const lift = liftFrame()
+    document.startViewTransition(apply).finished.finally(() => { lift(); after() })
   } else {
     apply()
     after()
   }
+}
+
+/**
+ * The page's frame (header, stage bar, panel, footer) gets a transition name
+ * of its own for the length of one move, so chart.css can stack it above the
+ * cards in flight: a card leaving the stage slides under the frame instead
+ * of across it. Set inline and removed after, so no site CSS styles the
+ * kit's header.
+ */
+const FRAME = ['.header-bar', '.stagebar', '.panel', '.neo-footer']
+function liftFrame() {
+  const els = FRAME.map((sel) => document.querySelector(sel)).filter((el) => el && el.offsetParent !== null)
+  els.forEach((el, i) => { el.style.viewTransitionName = `rama-frame-${i}` })
+  return () => els.forEach((el) => { el.style.viewTransitionName = '' })
 }
 
 /** Put the focused card a third of the way down the stage, centred across. */

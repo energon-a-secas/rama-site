@@ -13,8 +13,10 @@ import { escHtml, $ } from './utils.js'
 import { hueOf } from './people.js'
 import { plural } from './core.js'
 
-const RING = 92
+const FIRST_RING = 78
+const RING = 74
 const TAU = Math.PI * 2
+const radius = (d) => (d ? FIRST_RING + (d - 1) * RING : 0)
 const EMPLOYMENT_COLORS = { employee: '#34d399', contractor: '#fbbf24', vendor: '#fb923c', intern: '#38bdf8' }
 const OTHER = '#64748b'
 
@@ -37,8 +39,8 @@ function layout(ix) {
     const d = ix.depth.get(id)
     maxDepth = Math.max(maxDepth, d)
     const a = (a0 + a1) / 2
-    const r = d * RING
-    pos.set(id, { a, r, x: d ? Math.sin(a) * r : 0, y: d ? -Math.cos(a) * r : 0, d })
+    const r = radius(d)
+    pos.set(id, { a, a0, a1, r, x: d ? Math.sin(a) * r : 0, y: d ? -Math.cos(a) * r : 0, d })
     let cur = a0
     const total = leaves.get(id)
     for (const c of ix.kids(id)) {
@@ -47,7 +49,15 @@ function layout(ix) {
       cur += w
     }
   }
-  return { pos, extent: maxDepth * RING + 70, maxDepth }
+  return { pos, extent: radius(maxDepth) + 70, maxDepth }
+}
+
+/** An annulus slice from r0 to r1 between two angles (0 is straight up, clockwise). */
+function sector(a0, a1, r0, r1) {
+  const pt = (a, r) => `${(Math.sin(a) * r).toFixed(1)} ${(-Math.cos(a) * r).toFixed(1)}`
+  const big = a1 - a0 > Math.PI ? 1 : 0
+  if (a1 - a0 >= TAU - 1e-6) return `M${pt(0, r1)}A${r1} ${r1} 0 1 1 ${pt(Math.PI, r1)}A${r1} ${r1} 0 1 1 ${pt(0, r1)}Z`
+  return `M${pt(a0, r0)}L${pt(a0, r1)}A${r1} ${r1} 0 ${big} 1 ${pt(a1, r1)}L${pt(a1, r0)}A${r0} ${r0} 0 ${big} 0 ${pt(a0, r0)}Z`
 }
 
 function colorOf(p) {
@@ -74,7 +84,7 @@ export function renderOverview() {
   const ix = state.ix
   const svg = $('overviewSvg')
   if (!ix) return
-  const key = `${ix.model.people.length}|${ix.order.join(',').length}|${ui.colorBy}|${state.me.id}`
+  const key = `${ui.colorBy}|${state.me.id}|${svg.clientWidth}x${svg.clientHeight}`
   if (built.key !== key || built.ix !== ix) build(ix, svg, key)
   paintFocus()
   renderLegend()
@@ -82,8 +92,34 @@ export function renderOverview() {
 
 function build(ix, svg, key) {
   const { pos, extent, maxDepth } = layout(ix)
-  built = { key, ix, pos, extent }
-  const rings = Array.from({ length: maxDepth }, (_, i) => `<circle class="ov-ring" r="${(i + 1) * RING}"/>`).join('')
+  built = { key, ix, pos, extent, k: 1 }
+  // Fit the drawing, not the full circle: a lopsided org fills the frame instead of a corner of it.
+  let minX = -40, minY = -40, maxX = 40, maxY = 40
+  for (const at of pos.values()) { minX = Math.min(minX, at.x); maxX = Math.max(maxX, at.x); minY = Math.min(minY, at.y); maxY = Math.max(maxY, at.y) }
+  const pad = 110
+  const vb = [minX - pad, minY - pad, maxX - minX + pad * 2, maxY - minY + pad * 2]
+  // k turns screen pixels into drawing units, so dots and labels keep their size in any window.
+  const k = svg.clientWidth && svg.clientHeight ? Math.max(vb[2] / svg.clientWidth, vb[3] / svg.clientHeight) : 1
+  svg.style.setProperty('--u', k.toFixed(3))
+  built.k = k
+  const rings = Array.from({ length: maxDepth }, (_, i) => `<circle class="ov-ring" r="${radius(i + 1)}"/>`).join('')
+  // A faint wedge per division, named at its rim: the org's shape before any dot is read.
+  const outer = radius(maxDepth) + 26
+  const wedges = []
+  const rim = []
+  for (const id of ix.kids(ix.top)) {
+    const at = pos.get(id)
+    const gap = Math.min(0.012, (at.a1 - at.a0) / 6)
+    const hue = hueOf(id)
+    wedges.push(`<path class="ov-wedge" data-person="${escHtml(id)}" d="${sector(at.a0 + gap, at.a1 - gap, 34, outer)}" style="--c:hsl(${hue} 72% 60%)"/>`)
+    if (at.a1 - at.a0 > 0.22) {
+      const lx = Math.sin(at.a) * (outer + 10 * k)
+      const ly = -Math.cos(at.a) * (outer + 10 * k)
+      const anchor = Math.abs(lx) < 30 ? 'middle' : lx > 0 ? 'start' : 'end'
+      const n = ix.size.get(id) + 1
+      rim.push(`<text class="ov-rim" x="${lx.toFixed(1)}" y="${(ly + 4 * k).toFixed(1)}" text-anchor="${anchor}" style="--c:hsl(${hue} 80% 72%)">${escHtml(person(id).name)}<tspan class="ov-rim__n" dx="6">${n}</tspan></text>`)
+    }
+  }
   const links = []
   const dots = []
   const labels = []
@@ -93,20 +129,20 @@ function build(ix, svg, key) {
     const parent = ix.parentOf(id)
     if (parent) links.push(`<path class="ov-link" d="${linkPath(pos.get(parent), at)}"/>`)
     const size = ix.size.get(id)
-    const r = Math.min(15, 3.2 + Math.sqrt(size) * 1.25)
+    const r = Math.min(10, 3.4 + Math.sqrt(size) * 0.9) * k
     const cls = ['ov-dot', p.status === 'open' && 'is-open', isExternal(p) && 'is-external', p.virtual && 'is-org', id === state.me.id && 'is-me'].filter(Boolean).join(' ')
     dots.push(`<circle class="${cls}" data-person="${escHtml(id)}" cx="${at.x.toFixed(1)}" cy="${at.y.toFixed(1)}" r="${r.toFixed(1)}" style="--c:${colorOf(p)};--d:${(hash(id) % 4000) / 1000}s"/>`)
-    if (at.d <= 1 || id === state.me.id) {
+    if (at.d === 0 || id === state.me.id) {
       const right = at.x >= -1
-      const dx = at.d ? (right ? r + 6 : -(r + 6)) : 0
-      const dy = at.d ? 4 : r + 16
+      const dx = at.d ? (right ? r + 6 * k : -(r + 6 * k)) : 0
+      const dy = at.d ? 4 * k : r + 16 * k
       labels.push(`<text class="ov-label${at.d ? '' : ' ov-label--top'}${id === state.me.id ? ' ov-label--me' : ''}" x="${(at.x + dx).toFixed(1)}" y="${(at.y + dy).toFixed(1)}" text-anchor="${at.d ? (right ? 'start' : 'end') : 'middle'}">${escHtml(p.name)}</text>`)
     }
   }
-  svg.setAttribute('viewBox', `${-extent} ${-extent} ${extent * 2} ${extent * 2}`)
+  svg.setAttribute('viewBox', vb.map((n) => n.toFixed(0)).join(' '))
   const title = svg.querySelector('title')?.outerHTML || ''
-  svg.innerHTML = `${title}<g id="ovWorld"><g class="ov-rings">${rings}</g><g class="ov-links">${links.join('')}</g>` +
-    `<g id="ovPath"></g><g class="ov-dots">${dots.join('')}</g><g class="ov-labels">${labels.join('')}</g><g id="ovFocus"></g></g>`
+  svg.innerHTML = `${title}<g id="ovWorld"><g class="ov-wedges">${wedges.join('')}</g><g class="ov-rings">${rings}</g><g class="ov-links">${links.join('')}</g>` +
+    `<g id="ovPath"></g><g class="ov-dots">${dots.join('')}</g><g class="ov-labels">${labels.join('')}${rim.join('')}</g><g id="ovFocus"></g></g>`
   applyView()
 }
 
@@ -131,8 +167,8 @@ export function paintFocus() {
   }
   const f = built.pos.get(ui.focus)
   const p = person(ui.focus)
-  $('ovFocus').innerHTML = f && p && f.d > 1
-    ? `<circle class="ov-halo" cx="${f.x.toFixed(1)}" cy="${f.y.toFixed(1)}" r="22"/><text class="ov-label ov-label--focus" x="${f.x.toFixed(1)}" y="${(f.y - 26).toFixed(1)}" text-anchor="middle">${escHtml(p.name)}</text>`
+  $('ovFocus').innerHTML = f && p && f.d > 0
+    ? `<circle class="ov-halo" cx="${f.x.toFixed(1)}" cy="${f.y.toFixed(1)}" r="${(20 * built.k).toFixed(1)}"/><text class="ov-label ov-label--focus" x="${f.x.toFixed(1)}" y="${(f.y - 24 * built.k).toFixed(1)}" text-anchor="middle">${escHtml(p.name)}</text>`
     : ''
 }
 
@@ -147,7 +183,7 @@ function renderLegend() {
     const by = ui.colorBy
     if (by === 'branch') {
       const b = ix.branchOf(p.id)
-      add(b === ix.top ? person(b).name : person(b).name, `hsl(${hueOf(b)} 72% 62%)`)
+      add(person(b).name, `hsl(${hueOf(b)} 72% 62%)`)
     } else if (by === 'track') add(p.track, colorOf(p))
     else if (by === 'employment') add(p.status === 'open' ? 'open role' : p.employment, colorOf(p))
     else if (by === 'country') add(p.country || 'no country', colorOf(p))
@@ -218,7 +254,7 @@ export function bindOverview({ onPick, onHover }) {
     const was = drag
     drag = null
     if (was && !was.moved) {
-      const id = e.target.closest?.('.ov-dot')?.dataset.person
+      const id = e.target.closest?.('.ov-dot, .ov-wedge')?.dataset.person
       if (id) onPick(id)
     }
   }
