@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!-- Strict CSP. An inline script runs only if its sha256 is listed: the one hash is the theme
+       guard further down, so editing that script means re-hashing it (smoke check 29 reports a
+       mismatch). Inline on*="" handlers never run; attach listeners from a script file. Add a
+       source only when the page loads from it, as an exact host or a pinned path, never a whole
+       package CDN: a Convex deployment adds its https and wss URLs to connect-src, and sign-in
+       adds the CSP table in packages/neorgon-ui/auth/README.md. frame-ancestors, report-uri and
+       sandbox are ignored in a meta tag, so they are left out. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'sha256-na6phygP/tfoCIp4oBeQgGJJpQsZob/udrLum+20QTI=' https://gc.zgo.at https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://cdn.neorgon.org/v1.0.0/; img-src 'self' data: https://neorgon.goatcounter.com; font-src 'self'; connect-src 'self' https://neorgon.goatcounter.com https://cloudflareinsights.com; manifest-src 'self'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="Rama">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="neo-mark" content="on">
+  <title>Rama</title>
+  <meta name="description" content="Climb an org chart from your own seat to the top">
+  <meta property="og:title" content="Rama">
+  <meta property="og:description" content="Climb an org chart from your own seat to the top">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://rama.neorgon.com/">
+  <meta property="og:site_name" content="Neorgon">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Rama">
+  <meta name="twitter:description" content="Climb an org chart from your own seat to the top">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://rama.neorgon.com/">
+  <meta property="og:locale" content="en_US">
+  <meta name="theme-color" content="#040714">
+  <!-- og:image: uncomment when the social preview exists (1200x630 JPG from og-studio, `make og`);
+       a live tag pointing at a missing og-preview.jpg is a 404 in every link preview
+  <meta property="og:image" content="https://rama.neorgon.com/og-preview.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Rama">
+  <meta name="twitter:image" content="https://rama.neorgon.com/og-preview.jpg"> -->
+  <!-- Fleet design tokens: canonical, do not redeclare locally (docs/references/new-project-context.md, Design) -->
+  <link rel="stylesheet" href="https://cdn.neorgon.org/v1.0.0/styles/base.css">
+  <link rel="stylesheet" href="css/style.css">
+  <!-- template:styles -->
+  <!-- /template:styles -->
+  <!-- Neorgon Header Kit (vendored; ?header=live swaps CSS to CDN). Keep after style.css, the kit owns the header. -->
+  <script>(function(){var m=location.search.match(/[?&]theme=([\w-]+)/)||document.cookie.match(/(?:^|;\s*)neo_theme=([\w-]+)/);if(m&&m[1]!=='default')document.documentElement.dataset.theme=decodeURIComponent(m[1]);})();</script>
+  <link rel="stylesheet" href="css/neorgon-header.css">
+  <link rel="stylesheet" href="css/neorgon-themes.css">
+  <link rel="stylesheet" href="https://cdn.neorgon.org/v1.0.0/header/season.css">
+  <script defer src="js/neorgon-header.js"></script>
+  <!-- Neorgon Footer Kit (vendored). Pins the footer to the viewport floor on short
+       pages and builds the meta bar + back-to-top. See packages/neorgon-ui/footer/README.md.
+       Optional stamps: <meta name="neo-repo"|"neo-version"|"neo-updated"> -->
+  <link rel="stylesheet" href="css/neorgon-footer.css">
+  <script defer src="js/neorgon-footer.js"></script>
+  <!-- Neorgon Beacon Kit (vendored). Bottom-left correction reporter: it
+       carries page context to balise.neorgon.com in a URL fragment and the
+       visitor writes there. No form on this page and no request from it.
+       Opt out per page with <meta name="beacon" content="off">.
+       See packages/neorgon-ui/beacon/README.md. -->
+  <meta name="beacon-site" content="rama-site">
+  <link rel="stylesheet" href="css/neorgon-beacon.css">
+  <script defer src="js/neorgon-beacon.js"></script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Rama",
+    "description": "Climb an org chart from your own seat to the top",
+    "url": "https://rama.neorgon.com/",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Any",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "author": { "@type": "Organization", "name": "Neorgon", "url": "https://neorgon.com/" }
+  }
+  </script>
+</head>
+<body>
+
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <!-- Neorgon Header Kit contract (packages/neorgon-ui/header/README.md).
+       data-header-mode: hub (glass) | content (sticky gradient) | app (slim, auto-hides on scroll).
+       Pick content for learning/content sites, app for tool-dense sites. -->
+  <header class="header-bar" data-header-mode="app">
+    <div class="header-logo">
+      <!-- PATTERN: one link: mark + name go to THIS site's home (root or #home)
+           so clicking either resets the view. The hub icon in .header-right
+           is the only header link to neorgon.com. -->
+      <a href="./" class="header-title-link">
+        <img src="energon-classic-logo.png" class="header-logo-img" alt="">
+        <div class="header-title-wrap">
+          <h1>Rama</h1>
+          <div class="header-subtitle">Climb an org chart from your own seat to the top</div>
+        </div>
+      </a>
+    </div>
+
+    <!-- .header-right owns margin-left:auto; home icon is always last. -->
+    <div class="header-right">
+      <!-- template:actions -->
+      <!-- Optional .header-actions: keep one primary control visible with
+           data-keep-mobile. Wrap text beside an SVG in <span>. -->
+      <!-- /template:actions -->
+
+      <!-- Accounts (only for a site with sign-in): the Neorgon Auth Kit renders a "Sign in"
+           button in this slot, and Clerk's avatar menu once signed in. It also owns the
+           sign-in dialog, so there is no panel or modal to write. Vendor it with
+           packages/neorgon-ui/sync-auth.sh (its header shows how to adopt one site), then add
+             <meta name="clerk-publishable-key" content="pk_live_...">
+             a stylesheet link to css/neorgon-auth.css (named in prose here, because the
+             smoke ref checker reads comments and this file does not exist until you vendor it)
+           to <head>, and in js/events.js:
+             import { NeoAuth } from './neorgon-auth.js';
+             NeoAuth.onChange(({ signedIn, label }) => ...); NeoAuth.start({ convex });
+           Contract, CSP and gated actions: packages/neorgon-ui/auth/README.md
+      <div class="neo-auth" data-neo-auth data-keep-mobile hidden></div>
+      -->
+
+      <a class="header-home" href="https://neorgon.com/" title="neorgon.com" aria-label="Neorgon home">
+        <svg class="nh-hub-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M12 4.4 18.58 8.2 18.58 15.8 12 19.6 5.42 15.8 5.42 8.2Z" fill="currentColor" stroke="none"/>
+          <g class="nh-orbit">
+            <path d="M2.47 17.50 A11.0 11.0 0 0 1 14.85 1.37" fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round"/>
+            <path d="M21.53 6.50 A11.0 11.0 0 0 1 9.15 22.63" fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round"/>
+            <circle cx="21.71" cy="6.84" r="1.25" fill="currentColor"/>
+            <circle cx="2.29" cy="17.16" r="1.25" fill="currentColor"/>
+          </g>
+        </svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- template:main -->
+  <main id="main" tabindex="-1">
+    <div class="container stack stack--loose">
+      <section class="section" aria-labelledby="page-title">
+        <div class="section__titles">
+          <h2 class="section__title" id="page-title">Start with the task</h2>
+          <p class="section__lead">Climb an org chart from your own seat to the top</p>
+        </div>
+        <!-- Replace this section with the site's core task. Keep controls close to
+             what they affect. Optional recipes: _template/PATTERNS.md. -->
+      </section>
+    </div>
+  </main>
+  <!-- /template:main -->
+
+  <!-- Neorgon Footer Kit contract. data-footer-mode: minimal (default) | content | app.
+       Replace the copy with a real note (privacy, data provenance, disclaimer) or drop
+       the text entirely, the kit appends "Part of Neorgon" and any version stamps. -->
+  <footer class="neo-footer" data-footer-mode="minimal">
+    <!-- Optional: one accurate line about provenance or data use. The kit adds attribution. -->
+  </footer>
+
+  <div id="app-toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
