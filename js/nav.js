@@ -5,6 +5,7 @@
 // Each move is a history entry (?at=<id>), so Back walks back through the org.
 
 import { state, ui, person } from './state.js'
+import { focusView } from './tree.js'
 import { draw, announce } from './render.js'
 import { focusEl } from './render-chart.js'
 import { paintFocus } from './overview.js'
@@ -25,25 +26,36 @@ export function go(id, { push = true, focusDom = false } = {}) {
   const n = ix.kids(id).length
   announce(`${p.name}${p.title ? `, ${p.title}` : ''}${n ? `, ${plural(n, 'direct report')}` : ''}`)
 
+  // The focus moves now, not inside the transition: a second key pressed mid-flight steps from here.
+  const wasCards = document.querySelectorAll('#chart .node').length
+  ui.focus = id
   if (ui.view === 'overview') {
-    ui.focus = id
     paintFocus()
     draw()
     return
   }
   const apply = () => {
-    ui.focus = id
     draw()
     center('instant')
   }
   const after = () => { if (focusDom) focusEl()?.focus({ preventScroll: true }) }
-  if (document.startViewTransition && !prefersReducedMotion() && !document.hidden) {
+  // Every card is a named transition element; past a few hundred the browser stalls, so a wide org just cuts.
+  const small = wasCards <= MAX_MORPH && cardsFor(ix, id) <= MAX_MORPH
+  if (small && document.startViewTransition && !prefersReducedMotion() && !document.hidden) {
     const lift = liftFrame()
     document.startViewTransition(apply).finished.finally(() => { lift(); after() })
   } else {
     apply()
     after()
   }
+}
+
+const MAX_MORPH = 150
+
+/** How many cards the chart draws around id: the chain, the lead, the row, and each column up to its fold. */
+function cardsFor(ix, id) {
+  const v = focusView(ix, id)
+  return v.chain.length + 1 + v.row.length + v.columns.reduce((n, c) => n + Math.min(c.people.length, 9) + Math.min(c.external.length, 1) + Math.min(c.open.length, 1), 0)
 }
 
 /**
@@ -55,7 +67,8 @@ export function go(id, { push = true, focusDom = false } = {}) {
  */
 const FRAME = ['.header-bar', '.stagebar', '.panel', '.neo-footer']
 function liftFrame() {
-  const els = FRAME.map((sel) => document.querySelector(sel)).filter((el) => el && el.offsetParent !== null)
+  // Visible, not offsetParent: the phone sheet is position: fixed, whose offsetParent is always null.
+  const els = FRAME.map((sel) => document.querySelector(sel)).filter((el) => el && !el.hidden && el.getClientRects().length > 0)
   els.forEach((el, i) => { el.style.viewTransitionName = `rama-frame-${i}` })
   return () => els.forEach((el) => { el.style.viewTransitionName = '' })
 }

@@ -3,8 +3,9 @@
 // readDoc() every other entry point uses) and changes nothing until Apply.
 // YAML comments survive an Apply; switching to JSON rewrites the text.
 
-import { state, ui, loadText, person } from './state.js'
-import { readDoc, convertText, modelToText } from './docio.js'
+import { state, ui, openDoc, person } from './state.js'
+import { readDoc, convertText, modelToText, headcount } from './docio.js'
+import { paintRestore, warnIfUnsaved } from './actions.js'
 import { escHtml, debounce, showToast, $ } from './utils.js'
 import { openDialog } from './dialogs.js'
 import { drawAll } from './render.js'
@@ -13,9 +14,12 @@ import { plural } from './core.js'
 import { icon } from './icons.js'
 
 let format = 'yaml'
+// What Apply means: an edit of the open org, or a new one arriving (a blank org, a file dropped in).
+let pending = { source: 'editor', name: '' }
 
-export function openEditor({ opener, personId = null, text = null } = {}) {
+export function openEditor({ opener, personId = null, text = null, source = 'editor' } = {}) {
   const area = $('editorText')
+  pending = { source: text == null ? 'editor' : source, name: '' }
   format = state.format
   area.value = text ?? (state.text || (state.model ? modelToText(state.model, format) : ''))
   if (text != null) format = readDoc(text).format === 'json' ? 'json' : 'yaml'
@@ -40,8 +44,13 @@ function selectPerson(id) {
   const area = $('editorText')
   const p = person(id)
   const lines = area.value.split('\n')
-  const names = [p.name, p.id].map((s) => s.toLowerCase())
-  let at = lines.findIndex((l) => /(^|\s|")(name|id)"?\s*:/.test(l) && names.some((n) => l.toLowerCase().includes(n)))
+  // The value itself, not a substring: "Anna" must not land on "Joanna Smith".
+  const wanted = [p.name, p.id].map((s) => s.toLowerCase())
+  const valueOf = (l) => {
+    const m = /(?:^|[\s{,"-])"?(?:name|id)"?\s*:\s*(.+?)\s*,?\s*$/.exec(l)
+    return m ? m[1].replace(/^["']|["']$/g, '').toLowerCase() : null
+  }
+  let at = lines.findIndex((l) => wanted.includes(valueOf(l)))
   if (at < 0) at = 0
   const start = lines.slice(0, at).join('\n').length + (at ? 1 : 0)
   area.focus()
@@ -51,7 +60,7 @@ function selectPerson(id) {
 }
 
 const validate = debounce(() => {
-  const { model, issues } = readDoc($('editorText').value)
+  const { model, issues } = readDoc($('editorText').value, { name: pending.name })
   const box = $('editorIssues')
   if (!model) {
     box.innerHTML = `<p class="issue issue--error">${icon('alert', { size: 14 })}${escHtml(issues[0]?.msg || 'Could not read the document')}</p>`
@@ -66,16 +75,26 @@ const validate = debounce(() => {
 
 export function applyEditor() {
   const text = $('editorText').value
-  const read = loadText(text, { source: 'editor' })
+  const wasSrc = state.source === 'src'
+  const read = openDoc(text, { source: pending.source, name: pending.name })
   if (!read.model) {
     validate()
     showToast('Nothing changed: the document could not be read', { duration: 3000 })
     return
   }
+  pending = { source: 'editor', name: '' }
   $('editorDialog').close()
+  // An edited ?src= org is the visitor's now: drop ?src= so a reload shows what they applied.
+  if (wasSrc) {
+    const url = new URL(location.href)
+    url.searchParams.delete('src')
+    history.replaceState(history.state, '', url)
+  }
   if (!state.ix.has(ui.focus)) { ui.focus = state.me.id || state.ix.top; replaceAt(ui.focus) }
   drawAll()
-  showToast(`Applied: ${plural(read.model.people.length, 'person', 'people')}${read.issues.length ? `, ${plural(read.issues.length, 'warning')}` : ''}`, { duration: 2600 })
+  paintRestore()
+  showToast(`Applied: ${headcount(read.model)}${read.issues.length ? `, ${plural(read.issues.length, 'warning')}` : ''}`, { duration: 2600 })
+  warnIfUnsaved()
 }
 
 export function switchFormat(to) {
@@ -104,9 +123,11 @@ export function bindEditor() {
 }
 
 /** Text from a file, dropped into the open editor rather than applied. */
-export function editorReceive(text) {
+export function editorReceive(text, name = '') {
   $('editorText').value = text
-  format = readDoc(text).format === 'json' ? 'json' : 'yaml'
+  // A file dropped in is a new org arriving: Apply puts the open one on the Restore list.
+  pending = { source: 'import', name }
+  format = readDoc(text, { name }).format === 'json' ? 'json' : 'yaml'
   paintFormat()
   validate()
 }

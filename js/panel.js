@@ -70,7 +70,9 @@ function profile(p) {
 
   const details = extras(p, model)
 
-  return hero +
+  // The org's own notes live on the top card when there is one person at the top (the virtual top shows them otherwise).
+  const orgNotes = p.id === ix.top && model.notes ? section('About this org', `<div class="prose">${renderMarkdown(model.notes)}</div>`) : ''
+  return hero + orgNotes +
     section('Contact', contact.join('')) +
     section('Org', org.join('')) +
     (teamHtml ? section(teams.length > 1 ? 'Teams' : 'Team', teamHtml) : '') +

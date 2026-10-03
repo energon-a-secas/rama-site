@@ -3,8 +3,8 @@
 // other tool's own document (handoff.js) and open it through that tool's
 // published link contract; when a link would be too long, the file downloads.
 
-import { state, ui, person, loadText, stashCurrent, previousDoc, clearPrevious, setPicked } from './state.js'
-import { modelToText, shareLink, YAML_HEADER } from './docio.js'
+import { state, ui, person, openDoc, savedDoc, previousDocs, takePrevious, setPicked } from './state.js'
+import { modelToText, shareLink, headcount } from './docio.js'
 import { orgToCsv, orgToMermaid, personToVcard } from './formats.js'
 import { toFloorplanDoc, toRepartoDoc, floorplanLink, repartoLink, REPARTO_MAX } from './handoff.js'
 import { dumpYaml } from './yaml.js'
@@ -106,11 +106,13 @@ export async function copyPersonLink(id) {
 
 // ── Documents in ─────────────────────────────────────────────
 
-/** Open a document as the current org, keeping the visitor's own one aside. */
+/**
+ * Open a document as the current org. state.openDoc puts the visitor's saved
+ * org on the Restore list first, so nothing they wrote is lost to it.
+ */
 export function openText(text, { source, name = '' }) {
-  const before = state.text
-  const stashed = before && before !== text ? stashCurrent(source) : false
-  const read = loadText(text, { source, name })
+  const before = savedDoc()
+  const read = openDoc(text, { source, name })
   if (!read.model) {
     toast(`Could not open it: ${read.issues[0]?.msg || 'unreadable'}`, 4000)
     return null
@@ -118,23 +120,34 @@ export function openText(text, { source, name = '' }) {
   ui.focus = state.me.id || state.ix.top
   replaceAt(ui.focus)
   drawAll()
-  const words = `${plural(read.model.people.length, 'person', 'people')}${read.issues.length ? `, ${plural(read.issues.length, 'warning')}` : ''}`
-  toast(stashed ? `Opened ${read.model.title}: ${words}. Your previous org is under Org > Restore` : `Opened ${read.model.title}: ${words}`, 3600)
+  const words = `${headcount(read.model)}${read.issues.length ? `, ${plural(read.issues.length, 'warning')}` : ''}`
+  const kept = before && before.text !== state.text && source !== 'saved'
+  toast(kept ? `Opened ${read.model.title}: ${words}. Your previous org is under Org > Restore` : `Opened ${read.model.title}: ${words}`, 3600)
+  warnIfUnsaved()
   paintRestore()
   return read
 }
 
-export async function loadExample({ save = true } = {}) {
+/** The example is shown, never saved over the visitor's org; it is kept only once they edit it. */
+export async function loadExample({ first = false } = {}) {
   try {
     const res = await fetch('examples/lanternfish.yaml', { cache: 'no-cache' })
     if (!res.ok) throw new Error(String(res.status))
     const text = await res.text()
-    if (!save) return loadText(text, { source: 'example', save: false })
+    if (first) return openDoc(text, { source: 'example' })
     return openText(text, { source: 'example' })
   } catch {
     toast('The example could not be fetched. Check the connection and try again', 3600)
     return null
   }
+}
+
+let warned = false
+/** Once per visit: storage is blocked, so nothing outlives the tab. */
+export function warnIfUnsaved() {
+  if (state.storageOk || warned) return
+  warned = true
+  toast('This browser is not keeping anything (storage is blocked), so this org lasts until you close the tab. Download it from the Org menu to keep it', 6000)
 }
 
 export const BLANK = `# Rama org document. Schema and examples: https://rama.neorgon.com/llms.txt
@@ -160,40 +173,42 @@ people:
     status: open
 `
 
-export function restorePrevious() {
-  const prev = previousDoc()
+export function restorePrevious(i = 0) {
+  const prev = takePrevious(i)
   if (!prev) return toast('There is no previous org to bring back')
-  const read = loadText(prev.text, { source: 'saved' })
-  if (!read.model) return toast('The previous org could not be read')
-  clearPrevious()
+  const read = openDoc(prev.text, { source: 'restore' })
+  if (!read.model) { paintRestore(); return toast('The previous org could not be read') }
   ui.focus = state.me.id || state.ix.top
   replaceAt(ui.focus)
   drawAll()
   paintRestore()
-  toast(`Back to ${read.model.title}`)
+  toast(`Back to ${read.model.title}. The org it replaced is on the Restore list`, 3200)
 }
 
-/** Offer Restore in the Org menu only while there is something to restore. */
+/** One Restore row per org this browser kept aside, newest first. */
 export function paintRestore() {
   const menu = document.getElementById('orgMenu')
-  let item = menu.querySelector('[data-action="restore"]')
-  const prev = previousDoc()
-  if (!prev) { item?.remove(); return }
-  if (!item) {
-    item = document.createElement('button')
+  for (const old of menu.querySelectorAll('[data-action="restore"]')) old.remove()
+  const list = previousDocs()
+  let at = menu.querySelector('[data-action="blank"]')
+  list.forEach((prev, i) => {
+    const item = document.createElement('button')
     item.type = 'button'
     item.setAttribute('role', 'menuitem')
     item.dataset.action = 'restore'
-    menu.querySelector('[data-action="blank"]').after(item)
-  }
-  item.textContent = `Restore ${prev.title || 'your previous org'}`
+    item.dataset.index = String(i)
+    item.textContent = `Restore ${prev.title || 'an earlier org'}`
+    at.after(item)
+    at = item
+  })
 }
 
 export function thisIsMe(id, yes) {
   if (!yes && state.me.source === 'account') {
     return toast('Your Neorgon account email is on this card, so Rama keeps finding you here. Sign out, or change the email in the document', 4200)
   }
-  if (!yes && state.me.source === 'link') {
+  // A ?me= in the link names the visitor until they say otherwise, either way.
+  if (state.param && (!yes || state.me.id !== id)) {
     state.param = ''
     const url = new URL(location.href)
     url.searchParams.delete('me')

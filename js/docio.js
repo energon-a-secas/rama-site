@@ -47,6 +47,8 @@ export function readDoc(text, { name = '', title = '' } = {}) {
   }
   if (raw == null) raw = {}
   const { model, issues } = normalizeOrg(raw)
+  // Not an org at all (meeting notes, a CSV with no name column read as YAML): refuse it rather than open an empty one.
+  if (!model.people.length && issues.some((i) => i.level === 'error')) return { model: null, issues, format, raw }
   return { model, issues, format, raw }
 }
 
@@ -63,6 +65,13 @@ export function convertText(text, to) {
   const { model, issues } = readDoc(text)
   if (!model) return { text: null, issues }
   return { text: modelToText(model, to), issues }
+}
+
+/** "55 people, 3 open roles": the count every toast and summary uses, with vacancies apart. */
+export function headcount(model) {
+  const open = model.people.filter((p) => p.status === 'open').length
+  const people = model.people.length - open
+  return [`${people} ${people === 1 ? 'person' : 'people'}`, open && `${open} open ${open === 1 ? 'role' : 'roles'}`].filter(Boolean).join(', ')
 }
 
 export const shareLink = (text, base = `${location.origin}${location.pathname}`) => `${base}${LINK_PREFIX}${toBase64Url(text)}`

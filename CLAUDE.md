@@ -44,8 +44,9 @@ Vendored from `packages/neorgon-ui/`, never edit in place: `js/neorgon-{header,f
 
 ## Data
 
-- `localStorage['rama-site:doc']` (persist kit, version 1) holds `{ text, format, savedAt }`: the visitor's **text**, comments and all, never the model.
-- `rama-site:previous` keeps the org a link, an import or the example replaced, behind Org > Restore.
+- `localStorage['rama-site:doc']` (persist kit, version 1) holds `{ text, format, title, savedAt }`: the visitor's **text**, comments and all, never the model. A CSV arrives as the YAML it was converted to.
+- **Every org that arrives puts the saved one on the Restore list first** (`openDoc` in state.js). Links, imports, blank orgs and restores are saved at once; the example and a `?src=` file are shown, and saved only when edited (an edited `?src=` org drops `?src=` from the URL so a reload shows the edit). An unreadable document changes nothing, not even the list.
+- `rama-site:previous` (version 2) is that Restore list: the last 8 orgs, newest first, deduplicated by text. Version 1 held one org and migrates to a one-entry list.
 - `rama-site:preferences` holds `{ picked: { <org key>: <person id> }, view, panel, colorBy }`. The org key is the title's slug, or a hash of the title when it has no Latin letters.
 - `ui` (focus, view, panel, colour mode, open buckets) is never part of a document.
 - Signing in (Auth Kit, production Clerk) is used only to read the account's email addresses and match them to `people[].email`. Nothing is stored per account.

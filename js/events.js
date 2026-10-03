@@ -4,7 +4,7 @@
 // overview's pointer, and the Auth Kit. No inline handlers: the CSP forbids them.
 
 import { state, ui, person, savePrefs, refreshMe, COLOR_BY } from './state.js'
-import { go, step, center } from './nav.js'
+import { go, step, center, replaceAt } from './nav.js'
 import { draw, renderHeader } from './render.js'
 import { renderChart } from './render-chart.js'
 import { bindOverview, fitOverview, renderOverview, dotRect } from './overview.js'
@@ -35,9 +35,12 @@ export function bindEvents() {
   window.addEventListener('popstate', () => {
     const at = new URLSearchParams(location.search).get('at')
     if (at && state.ix?.has(at)) go(at, { push: false })
+    // That card is gone (renamed in the editor, say): make the URL say what the screen shows.
+    else if (state.ix) replaceAt(ui.focus)
   })
   window.addEventListener('hashchange', () => { if (location.hash.startsWith('#d=')) location.reload() })
-  window.addEventListener('resize', debounce(() => { if (ui.view === 'chart') renderChart() }, 150))
+  // The overview rebuilds when its size changed, so dots and labels keep their screen size.
+  window.addEventListener('resize', debounce(() => { if (ui.view === 'chart') renderChart(); else renderOverview() }, 150))
   $('colorBy').addEventListener('change', (e) => {
     if (!COLOR_BY.includes(e.target.value)) return
     ui.colorBy = e.target.value
@@ -58,16 +61,25 @@ function onClick(e) {
   const personBtn = t.closest('[data-person]')
   if (personBtn && !t.closest('#overviewSvg')) {
     const id = personBtn.dataset.person
-    if (id === ui.focus && personBtn.classList.contains('node')) { ui.panel = !ui.panel; savePrefs(); draw(); return }
+    if (id === ui.focus && personBtn.classList.contains('node')) {
+      ui.panel = !ui.panel
+      savePrefs()
+      draw()
+      refocus(`.node[data-person="${CSS.escape(id)}"]`)
+      return
+    }
     go(id, { focusDom: personBtn.classList.contains('node') })
     return
   }
   const bucket = t.closest('[data-bucket]')
   if (bucket) {
     const key = bucket.dataset.bucket
-    if (ui.expanded.has(key)) ui.expanded.delete(key)
-    else ui.expanded.add(key)
+    const opening = !ui.expanded.has(key)
+    if (opening) ui.expanded.add(key)
+    else ui.expanded.delete(key)
     renderChart()
+    // Keep the keyboard where it was: on the bucket's fold button, or the bucket itself once folded.
+    refocus(`[data-bucket="${CSS.escape(key)}"]`)
     return
   }
   const view = t.closest('button[data-view]')
@@ -97,9 +109,9 @@ function action(name, el) {
     case 'import': fileTarget = 'app'; return $('fileInput').click()
     case 'editor-import': fileTarget = 'editor'; return $('fileInput').click()
     case 'example': return loadExample()
-    case 'blank': return openEditor({ opener: el, text: BLANK })
-    case 'restore': return restorePrevious()
-    case 'close-panel': ui.panel = false; savePrefs(); draw(); return $('stage').focus({ preventScroll: true })
+    case 'blank': return openEditor({ opener: el, text: BLANK, source: 'blank' })
+    case 'restore': return restorePrevious(Number(el.dataset.index) || 0)
+    case 'close-panel': return togglePanel(false)
     case 'vcard': return downloadVcard(focus)
     case 'copy-person-link': return copyPersonLink(focus)
     case 'this-is-me': return thisIsMe(focus, true)
@@ -146,10 +158,10 @@ function onKey(e) {
     '/': () => openSearch(document.activeElement),
     m: () => goMe(document.activeElement), M: () => goMe(document.activeElement),
     o: () => setView(ui.view === 'chart' ? 'overview' : 'chart'), O: () => setView(ui.view === 'chart' ? 'overview' : 'chart'),
-    p: () => { ui.panel = !ui.panel; savePrefs(); draw() }, P: () => { ui.panel = !ui.panel; savePrefs(); draw() },
+    p: () => togglePanel(), P: () => togglePanel(),
     e: () => openEditor({ opener: document.activeElement }), E: () => openEditor({ opener: document.activeElement }),
     '?': () => openHelp(document.activeElement),
-    Escape: () => { if (ui.panel && !$('panel').hidden) { ui.panel = false; savePrefs(); draw() } },
+    Escape: () => { if (ui.panel && !$('panel').hidden) togglePanel(false) },
   }
   const fn = keys[e.key]
   if (!fn) return
@@ -159,10 +171,34 @@ function onKey(e) {
   fn()
 }
 
+/**
+ * Show or hide the profile. Focus that was inside the panel, or on a card the
+ * re-render replaced, lands on the focused card instead of falling to <body>.
+ */
+function togglePanel(open = !ui.panel) {
+  const inside = $('panel').contains(document.activeElement)
+  ui.panel = open
+  savePrefs()
+  draw()
+  if (inside || !document.activeElement || document.activeElement === document.body) {
+    const card = ui.view === 'chart' ? document.querySelector('.node.is-focus') : null
+    ;(card || $('stage')).focus({ preventScroll: true })
+  }
+}
+
+/** A re-render replaced the control that had focus: put focus on its replacement. */
+function refocus(selector) {
+  if (document.activeElement && document.activeElement !== document.body && document.activeElement.isConnected) return
+  document.querySelector(selector)?.focus({ preventScroll: true })
+}
+
 // ── Overview pointer ─────────────────────────────────────────
 function pickDot(id) {
   ui.panel = true
-  go(id)
+  savePrefs()
+  // The person already in focus: go() would do nothing, and the panel would stay shut.
+  if (id === ui.focus) draw()
+  else go(id)
 }
 
 function hoverDot(id) {
@@ -226,7 +262,7 @@ function bindDrop() {
     const file = e.dataTransfer?.files?.[0]
     if (!file) return
     e.preventDefault()
-    if ($('editorDialog').open) editorReceive(await file.text())
+    if ($('editorDialog').open) editorReceive(await file.text(), file.name)
     else openText(await file.text(), { source: 'import', name: file.name })
   })
 }
@@ -237,7 +273,7 @@ async function onFile(e) {
   if (!file) return
   if (file.size > 3_000_000) return showToast('That file is over 3 MB; Rama reads up to 3 MB', { duration: 3200 })
   const text = await file.text()
-  if (fileTarget === 'editor') editorReceive(text)
+  if (fileTarget === 'editor') editorReceive(text, file.name)
   else openText(text, { source: 'import', name: file.name })
 }
 
@@ -248,11 +284,13 @@ function startAuth() {
     state.emails = accountEmails(auth)
     refreshMe()
     if (state.me.id === before) return renderHeader()
-    // A late sign-in moves the view only if the visitor has not started exploring.
-    if (state.me.source === 'account' && !ui.moved && state.me.id) {
+    // A late sign-in moves the view only if the visitor has not started exploring,
+    // and never off a card the opening link named (?at=).
+    if (state.me.source === 'account' && !ui.moved && !ui.atLink && state.me.id) {
       showToast(`Found you by your Neorgon email: ${person(state.me.id).name}`, { duration: 3200 })
       ui.panel = true
       go(state.me.id, { push: false })
+      replaceAt(state.me.id)
       ui.moved = false
     } else draw()
   })

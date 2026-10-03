@@ -52,7 +52,9 @@ function combobox({ input, list, onPick, empty }) {
           `<span class="result__title">${escHtml(p.title || '')}${hint ? ` <span class="result__why">${escHtml(hint)}</span>` : ''}</span></span>` +
           `<span class="result__crumb">${escHtml(crumb(id))}</span></li>`
       }).join('')
-      : `<li class="result result--none">Nobody matches "${escHtml(q.trim())}". Try a first name, a skill or a city.</li>`
+      : q.trim()
+        ? `<li class="result result--none" role="presentation">Nobody matches "${escHtml(q.trim())}". Try a first name, a skill or a city.</li>`
+        : ''
     input.setAttribute('aria-activedescendant', ids.length ? `${list.id}-${active}` : '')
     input.setAttribute('aria-expanded', String(ids.length > 0))
   }
@@ -87,7 +89,9 @@ export function bindSearch() {
     onPick: (id) => {
       $('searchDialog').close()
       ui.panel = true
-      go(id, { focusDom: true })
+      // The person already in focus: go() does nothing, so draw to open the panel.
+      if (id === ui.focus) draw()
+      else go(id, { focusDom: true })
     },
   })
   picker = combobox({
@@ -116,7 +120,8 @@ export function openSearch(opener) {
 export function openPicker(opener) {
   if (!state.ix) return
   picker.reset()
-  $('whoAuth').hidden = !!state.emails.length
+  // Sign-in finds a card by email: worth offering only when signed out and the org has emails at all.
+  $('whoAuth').hidden = !!state.emails.length || !state.model.people.some((p) => p.email.length)
   openDialog($('whoDialog'), opener)
   $('whoInput').focus()
 }

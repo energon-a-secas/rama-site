@@ -5,13 +5,19 @@
 // `ui` fields are view state and are never saved with the document.
 
 import { createStore } from './neorgon-persist.js'
-import { readDoc } from './docio.js'
+import { readDoc, modelToText } from './docio.js'
 import { indexOrg } from './tree.js'
 import { resolveMe } from './me.js'
 import { slug, hash } from './core.js'
 
 const docStore = createStore({ key: 'rama-site:doc', version: 1 })
-const previousStore = createStore({ key: 'rama-site:previous', version: 1 })
+// Version 2 is a list; version 1 held one org, which becomes the first entry.
+const previousStore = createStore({
+  key: 'rama-site:previous',
+  version: 2,
+  migrate: (data) => (data && typeof data.text === 'string' ? [data] : null),
+})
+const KEEP_PREVIOUS = 8
 const prefStore = createStore({ key: 'rama-site:preferences', version: 1 })
 
 export const VIEWS = ['chart', 'overview']
@@ -47,7 +53,8 @@ export function loadPrefs() {
   if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
     const picked = saved.picked && typeof saved.picked === 'object' && !Array.isArray(saved.picked) ? saved.picked : {}
     prefs = {
-      picked: Object.fromEntries(Object.entries(picked).filter(([k, v]) => typeof k === 'string' && typeof v === 'string').slice(0, 50)),
+      // The 50 most recent picks: setPicked moves a pick to the end, so the oldest fall off.
+      picked: Object.fromEntries(Object.entries(picked).filter(([k, v]) => typeof k === 'string' && typeof v === 'string').slice(-50)),
       view: VIEWS.includes(saved.view) ? saved.view : 'chart',
       panel: saved.panel !== false,
       colorBy: COLOR_BY.includes(saved.colorBy) ? saved.colorBy : 'branch',
@@ -73,36 +80,76 @@ const orgKey = () => {
 }
 export const pickedFor = () => prefs.picked[orgKey()] || ''
 export function setPicked(id) {
-  if (id) prefs.picked[orgKey()] = id
-  else delete prefs.picked[orgKey()]
+  const key = orgKey()
+  delete prefs.picked[key]
+  if (id) prefs.picked[key] = id
   savePrefs()
   refreshMe()
 }
 
 // ── The document ─────────────────────────────────────────────
+// Every org that arrives (a link, an import, the example, a blank org, a
+// ?src= file, a restore) first puts the visitor's saved org on the Restore
+// list, so nothing they wrote is ever lost to the next thing they open.
+// Links, imports, blank orgs and restores are kept at once; the example and a
+// ?src= file are kept only when the visitor edits them.
+
+const KEPT_AT_ONCE = new Set(['link', 'import', 'blank', 'restore'])
+let lineageSaved = false // rama-site:doc holds the org on screen
+state.storageOk = true
 
 /**
  * Read text into the state. Returns readDoc's result; on an unreadable
- * document nothing changes and the caller shows the issues.
+ * document nothing changes (nothing is stashed either) and the caller shows the issues.
+ * source: 'saved' | 'link' | 'import' | 'blank' | 'restore' | 'example' | 'src' | 'editor'
  */
-export function loadText(text, { source = 'editor', name = '', save = true } = {}) {
+export function openDoc(text, { source = 'editor', name = '' } = {}) {
   const read = readDoc(text, { name })
   if (!read.model) return read
-  state.text = read.format === 'csv' ? '' : String(text)
+  const before = orgKey()
+  // A CSV becomes YAML once read, so it can be saved, stashed and edited like any other org.
+  state.text = read.format === 'csv' ? modelToText(read.model, 'yaml') : String(text)
   state.format = read.format === 'json' ? 'json' : 'yaml'
-  state.source = source
   state.model = read.model
   state.ix = indexOrg(read.model)
   state.issues = read.issues
   ui.expanded.clear()
+  if (source === 'editor') {
+    // Renaming the org in the editor keeps the card this browser picked in it.
+    const after = orgKey()
+    if (after !== before && prefs.picked[before] && !prefs.picked[after]) {
+      prefs.picked[after] = prefs.picked[before]
+      delete prefs.picked[before]
+      savePrefs()
+    }
+  } else {
+    state.source = source
+    if (source === 'saved') lineageSaved = true
+    else {
+      lineageSaved = false
+      stashSaved(state.text)
+    }
+  }
   refreshMe()
   if (ui.focus && !state.ix.has(ui.focus)) ui.focus = null
-  if (save && state.text) saveDoc()
+  if (source === 'editor' || KEPT_AT_ONCE.has(source)) commit()
   return read
 }
 
-export function saveDoc() {
-  return docStore.save({ text: state.text, format: state.format, savedAt: new Date().toISOString() })
+/** Put the saved org on the Restore list, unless it is the org arriving. */
+function stashSaved(incoming) {
+  const saved = savedDoc()
+  if (!saved || saved.text === incoming) return
+  pushPrevious({ text: saved.text, title: saved.title || '', savedAt: saved.savedAt || '' })
+}
+
+function commit() {
+  if (!lineageSaved) stashSaved(state.text)
+  const ok = docStore.save({ text: state.text, format: state.format, title: state.model?.title || '', savedAt: new Date().toISOString() })
+  lineageSaved = ok
+  state.storageOk = ok
+  if (ok && state.source !== 'saved') state.source = 'saved'
+  return ok
 }
 
 export function savedDoc() {
@@ -110,18 +157,23 @@ export function savedDoc() {
   return d && typeof d.text === 'string' && d.text.trim() ? d : null
 }
 
-/** Keep the visitor's own org aside before a link or an example replaces it. */
-export function stashCurrent(reason) {
-  if (!state.text || state.source === 'example') return false
-  return previousStore.save({ text: state.text, title: state.model?.title || '', reason, savedAt: new Date().toISOString() })
+export function previousDocs() {
+  const list = previousStore.load([])
+  return Array.isArray(list) ? list.filter((d) => d && typeof d.text === 'string' && d.text.trim()).slice(0, KEEP_PREVIOUS) : []
 }
 
-export function previousDoc() {
-  const d = previousStore.load(null)
-  return d && typeof d.text === 'string' && d.text.trim() ? d : null
+function pushPrevious(entry) {
+  const list = [entry, ...previousDocs().filter((d) => d.text !== entry.text)].slice(0, KEEP_PREVIOUS)
+  previousStore.save(list)
 }
 
-export const clearPrevious = () => previousStore.clear()
+/** Take one org off the Restore list (it is about to be opened). */
+export function takePrevious(i) {
+  const list = previousDocs()
+  const [entry] = list.splice(i, 1)
+  previousStore.save(list)
+  return entry || null
+}
 
 export function refreshMe() {
   if (!state.ix) return
