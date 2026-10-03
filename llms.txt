@@ -66,7 +66,7 @@ people:
     status: active               # active (default) | open (an open role) | leave | incoming
     start: 2024-02-12            # the start date; with status incoming, when they join
     tags: [migrations, postgres] # expertise; searchable
-    photo: https://example.com/jules.jpg   # https only; otherwise initials on a colour
+    photo: https://example.com/jules.jpg   # https only; otherwise initials on a colour. In an org opened from a link or ?src=, photos stay hidden until the visitor chooses Show photos
     pronounced: JOOLZ oh-KAH-for
     notes: Half on Core, half on Migration until the cutover.   # markdown
     extends: agency              # one profile name or a list, applied left to right

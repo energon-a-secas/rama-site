@@ -63,13 +63,16 @@ function renderNotice() {
   const ix = state.ix
   // A document with people and teams but no reporting lines (a Floorplan file, say) draws flat; say how to fix that.
   const flat = ix && ix.model.people.length > 1 && ix.stats.managers === 0
-  if (!warns.length && !flat) { el.hidden = true; el.innerHTML = ''; return }
+  const photos = ix && state.foreign && ix.model.people.some((p) => p.photo)
+  if (!warns.length && !flat && !photos) { el.hidden = true; el.innerHTML = ''; return }
   el.hidden = false
   const lines = []
   if (warns.length) lines.push(`${plural(warns.length, 'thing')} in the document ${warns.length === 1 ? 'needs' : 'need'} a look: ${warns[0].msg}${warns.length > 1 ? ', and more' : ''}.`)
   if (flat) lines.push(`Nobody reports to anyone yet${ix.model.teams.length ? ', though the teams came through' : ''}. Add manager: to each person to draw the reporting lines.`)
+  if (photos) lines.push('This org came from a link, and its photos load from other sites, which would see whose cards you open. They stay hidden until you show them.')
   el.innerHTML = `${icon('alert', { size: 15 })}<span>${lines.map(escHtml).join(' ')}</span>` +
-    '<button type="button" class="btn-link" data-action="edit">Open the editor</button>'
+    (photos ? '<button type="button" class="btn-link" data-action="allow-photos">Show photos</button>' : '') +
+    (warns.length || flat ? '<button type="button" class="btn-link" data-action="edit">Open the editor</button>' : '')
 }
 
 export function renderHeader() {

@@ -45,7 +45,7 @@ export async function openFirstDocument() {
 
   const saved = savedDoc()
   if (saved) {
-    const read = openDoc(saved.text, { source: 'saved' })
+    const read = openDoc(saved.text, { source: 'saved', foreign: saved.foreign })
     if (read.model) { paintRestore(); return }
   }
   await loadExample({ first: true })

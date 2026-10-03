@@ -3,9 +3,9 @@
 // data-handoff, data-bucket, data-view), the keys, history, drops, the
 // overview's pointer, and the Auth Kit. No inline handlers: the CSP forbids them.
 
-import { state, ui, person, savePrefs, refreshMe, COLOR_BY } from './state.js'
+import { state, ui, person, savePrefs, refreshMe, trustDoc, COLOR_BY } from './state.js'
 import { go, step, center, replaceAt } from './nav.js'
-import { draw, renderHeader } from './render.js'
+import { draw, drawAll, renderHeader } from './render.js'
 import { renderChart } from './render-chart.js'
 import { bindOverview, fitOverview, renderOverview, dotRect } from './overview.js'
 import { bindSearch, openSearch, openPicker } from './search.js'
@@ -119,6 +119,7 @@ function action(name, el) {
     case 'this-is-me': return thisIsMe(focus, true)
     case 'not-me': return thisIsMe(focus, false)
     case 'fit': return fitOverview()
+    case 'allow-photos': trustDoc(); return drawAll()
     case 'signin': $('whoDialog').close(); return NeoAuth.openSignIn({ reason: 'Sign in and Rama finds your card by the email on your account.' })
     case 'more-tags':
       for (const x of document.querySelectorAll('[data-tags] [data-extra]')) x.hidden = false

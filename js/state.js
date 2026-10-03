@@ -97,13 +97,14 @@ export function setPicked(id) {
 const KEPT_AT_ONCE = new Set(['link', 'import', 'blank', 'restore'])
 let lineageSaved = false // rama-site:doc holds the org on screen
 state.storageOk = true
+state.foreign = false
 
 /**
  * Read text into the state. Returns readDoc's result; on an unreadable
  * document nothing changes (nothing is stashed either) and the caller shows the issues.
  * source: 'saved' | 'link' | 'import' | 'blank' | 'restore' | 'example' | 'src' | 'editor'
  */
-export function openDoc(text, { source = 'editor', name = '' } = {}) {
+export function openDoc(text, { source = 'editor', name = '', foreign = false } = {}) {
   const read = readDoc(text, { name })
   if (!read.model) return read
   const before = orgKey()
@@ -124,6 +125,9 @@ export function openDoc(text, { source = 'editor', name = '' } = {}) {
     }
   } else {
     state.source = source
+    // Someone else's document (a link, a ?src= file) stays foreign until the visitor says otherwise:
+    // its photo URLs are not fetched, because which ones load would tell their host whose card this is.
+    state.foreign = source === 'link' || source === 'src' || ((source === 'saved' || source === 'restore') && !!foreign)
     if (source === 'saved') lineageSaved = true
     else {
       lineageSaved = false
@@ -140,16 +144,22 @@ export function openDoc(text, { source = 'editor', name = '' } = {}) {
 function stashSaved(incoming) {
   const saved = savedDoc()
   if (!saved || saved.text === incoming) return
-  pushPrevious({ text: saved.text, title: saved.title || '', savedAt: saved.savedAt || '' })
+  pushPrevious({ text: saved.text, title: saved.title || '', savedAt: saved.savedAt || '', foreign: !!saved.foreign })
 }
 
 function commit() {
   if (!lineageSaved) stashSaved(state.text)
-  const ok = docStore.save({ text: state.text, format: state.format, title: state.model?.title || '', savedAt: new Date().toISOString() })
+  const ok = docStore.save({ text: state.text, format: state.format, title: state.model?.title || '', foreign: !!state.foreign, savedAt: new Date().toISOString() })
   lineageSaved = ok
   state.storageOk = ok
   if (ok && state.source !== 'saved') state.source = 'saved'
   return ok
+}
+
+/** The visitor chose to show this document's photos: it is theirs to view now, and stays so when saved. */
+export function trustDoc() {
+  state.foreign = false
+  if (lineageSaved) commit()
 }
 
 export function savedDoc() {

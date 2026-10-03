@@ -176,7 +176,7 @@ people:
 export function restorePrevious(i = 0) {
   const prev = takePrevious(i)
   if (!prev) return toast('There is no previous org to bring back')
-  const read = openDoc(prev.text, { source: 'restore' })
+  const read = openDoc(prev.text, { source: 'restore', foreign: prev.foreign })
   if (!read.model) { paintRestore(); return toast('The previous org could not be read') }
   ui.focus = state.me.id || state.ix.top
   replaceAt(ui.focus)

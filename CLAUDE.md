@@ -62,6 +62,7 @@ Vendored from `packages/neorgon-ui/`, never edit in place: `js/neorgon-{header,f
 - **`test/regressions.test.mjs` holds one test per defect the verification workflow confirmed.** A fix to the core gets its test there, named after the defect.
 - **`str()` is the first line against injection**: it turns CR into LF and drops other control characters, so a value cannot start a vCard or CSV line. `formats.js` escapes again on the way out.
 - **A document is untrusted input**: it can arrive from a stranger's `#d=` link or `?src=` URL. Interpolate through `escHtml`, colours through `safeColor`, links through `safeUrl`/`fieldHref`. The meta CSP is the second layer: no inline script beyond the theme guard's hash.
+- **A foreign document's photos do not load until the visitor says so** (`state.foreign`, set for `#d=` and `?src=`, kept in the saved record and the Restore list). Each person can carry a unique photo URL, and which ones load (around the card Rama centres on, found by the visitor's account email) would tell the host who opened the link. The notice offers Show photos; `trustDoc()` clears the flag.
 - **`img-src` and `connect-src` carry `https:`** on purpose (`photo:` URLs and `?src=`). Narrowing them would break both; the rest of the policy is exact hosts.
 - **No Markdown is published**: `_config.yml` excludes it, so `/CLAUDE.html` must answer 404 after a push. `llms.txt` is served on purpose.
 

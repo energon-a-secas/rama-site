@@ -63,7 +63,8 @@ export function avatar(p, size = 'md') {
   const corner = p.status === 'leave' ? `<span class="avatar__mark avatar__mark--leave">${icon('moon', { size: 10 })}</span>`
     : p.status === 'incoming' ? `<span class="avatar__mark avatar__mark--new">${icon('sparkles', { size: 10 })}</span>`
       : mark ? `<span class="avatar__mark avatar__mark--ext">${mark[0]}</span>` : ''
-  const img = p.photo ? `<img class="avatar__img" src="${escHtml(p.photo)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : ''
+  // A foreign document's photos wait for the visitor's say-so (state.foreign): see openDoc.
+  const img = p.photo && !state.foreign ? `<img class="avatar__img" src="${escHtml(p.photo)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : ''
   return `<span class="avatar avatar--${size}${p.status === 'leave' ? ' avatar--dim' : ''}" style="--hue:${hueOf(p.id)}" aria-hidden="true">` +
     `<span class="avatar__initials">${escHtml(initials(p.name))}</span>${img}${corner}</span>`
 }
