@@ -20,7 +20,9 @@ export function drawWires(chart, v) {
     const r = el.getBoundingClientRect()
     return { l: r.left - box.left, r: r.right - box.left, t: r.top - box.top, b: r.bottom - box.top, cx: (r.left + r.right) / 2 - box.left, cy: (r.top + r.bottom) / 2 - box.top }
   }
-  const nodeOf = (id) => chart.querySelector(`.node[data-person="${CSS.escape(id)}"]`)
+  // One pass over the cards, then lookups: a querySelector per card was quadratic at a few thousand.
+  const nodes = new Map([...chart.querySelectorAll('.node[data-person]')].map((el) => [el.dataset.person, el]))
+  const nodeOf = (id) => nodes.get(id)
   const base = []
   const path = []
   const put = (d, onPath, extra = '') => (onPath ? path : base).push({ d, extra })

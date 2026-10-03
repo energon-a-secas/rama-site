@@ -172,9 +172,19 @@ export function previousDocs() {
   return Array.isArray(list) ? list.filter((d) => d && typeof d.text === 'string' && d.text.trim()).slice(0, KEEP_PREVIOUS) : []
 }
 
+/**
+ * Put an org on the Restore list. When storage is full, the oldest entries go
+ * first, one at a time, until the list fits; if even the new entry alone does
+ * not fit, restoreFull is set so the visitor is told once (warnIfUnsaved).
+ */
 function pushPrevious(entry) {
   const list = [entry, ...previousDocs().filter((d) => d.text !== entry.text)].slice(0, KEEP_PREVIOUS)
-  previousStore.save(list)
+  while (list.length) {
+    if (previousStore.save(list)) return true
+    list.pop()
+  }
+  state.restoreFull = true
+  return false
 }
 
 /** Take one org off the Restore list (it is about to be opened). */

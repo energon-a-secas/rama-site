@@ -36,7 +36,7 @@ function defaults() {
   return [...new Set(ids.filter((id) => id && !person(id).virtual))].slice(0, 8)
 }
 
-function combobox({ input, list, onPick, empty }) {
+function combobox({ input, list, onPick, empty, count }) {
   let active = 0
   let ids = []
   const paint = () => {
@@ -58,7 +58,6 @@ function combobox({ input, list, onPick, empty }) {
     input.setAttribute('aria-activedescendant', ids.length ? `${list.id}-${active}` : '')
     input.setAttribute('aria-expanded', String(ids.length > 0))
     // Say how many matched, for screen readers: the list itself changes silently.
-    const count = $('searchCount')
     if (count && q.trim()) count.textContent = ids.length ? `${ids.length} ${ids.length === 1 ? 'person' : 'people'} found` : 'Nobody found'
   }
   const select = (i) => {
@@ -88,6 +87,7 @@ export function bindSearch() {
   palette = combobox({
     input: $('searchInput'),
     list: $('searchResults'),
+    count: $('searchCount'),
     empty: defaults,
     onPick: (id) => {
       $('searchDialog').close()
@@ -100,6 +100,7 @@ export function bindSearch() {
   picker = combobox({
     input: $('whoInput'),
     list: $('whoResults'),
+    count: $('whoCount'),
     empty: () => [],
     onPick: (id) => {
       $('whoDialog').close()

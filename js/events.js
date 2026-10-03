@@ -5,7 +5,7 @@
 
 import { state, ui, person, savePrefs, refreshMe, trustDoc, COLOR_BY } from './state.js'
 import { go, step, center, replaceAt } from './nav.js'
-import { draw, drawAll, renderHeader } from './render.js'
+import { draw, drawAll, renderHeader, announce } from './render.js'
 import { renderChart } from './render-chart.js'
 import { bindOverview, fitOverview, zoomOverview, renderOverview, dotRect } from './overview.js'
 import { bindSearch, openSearch, openPicker } from './search.js'
@@ -70,7 +70,8 @@ function onClick(e) {
       refocus(`.node[data-person="${CSS.escape(id)}"]`)
       return
     }
-    go(id, { focusDom: personBtn.classList.contains('node') })
+    // Focus follows the move from anywhere (a card, a chip in the panel, a phone's "N reports"), never dropping to <body>.
+    go(id, { focusDom: true })
     return
   }
   const bucket = t.closest('[data-bucket]')
@@ -116,16 +117,21 @@ function action(name, el) {
     case 'close-panel': return togglePanel(false)
     case 'vcard': return downloadVcard(focus)
     case 'copy-person-link': return copyPersonLink(focus)
-    case 'this-is-me': return thisIsMe(focus, true)
-    case 'not-me': return thisIsMe(focus, false)
+    case 'this-is-me': thisIsMe(focus, true); return refocus('[data-action="not-me"], [data-action="this-is-me"]')
+    case 'not-me': thisIsMe(focus, false); return refocus('[data-action="this-is-me"], [data-action="not-me"]')
     case 'fit': return fitOverview()
     case 'zoom-in': return zoomOverview(1.3)
     case 'zoom-out': return zoomOverview(1 / 1.3)
     case 'allow-photos': trustDoc(); return drawAll()
     case 'signin': $('whoDialog').close(); return NeoAuth.openSignIn({ reason: 'Sign in and Rama finds your card by the email on your account.' })
-    case 'more-tags':
-      for (const x of document.querySelectorAll('[data-tags] [data-extra]')) x.hidden = false
-      return el.remove()
+    case 'more-tags': {
+      // A toggle rather than a button that removes itself, so focus has somewhere to stay.
+      const open = el.getAttribute('aria-expanded') !== 'true'
+      for (const x of document.querySelectorAll('[data-tags] [data-extra]')) x.hidden = !open
+      el.setAttribute('aria-expanded', String(open))
+      el.textContent = open ? 'Fewer' : el.dataset.more
+      return undefined
+    }
     default: return undefined
   }
 }
@@ -202,6 +208,7 @@ function togglePanel(open = !ui.panel) {
   ui.panel = open
   savePrefs()
   draw()
+  announce(open ? 'Profile open' : 'Profile closed')
   if (inside || !document.activeElement || document.activeElement === document.body) {
     const card = ui.view === 'chart' ? document.querySelector('.node.is-focus') : null
     ;(card || $('stage')).focus({ preventScroll: true })

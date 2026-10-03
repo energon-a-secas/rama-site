@@ -66,7 +66,7 @@ function profile(p) {
   const teamHtml = teams.length ? `<ul class="teams">${teams.map(({ t, pct }) =>
     `<li><span class="swatch" style="--c:${t.color || 'var(--accent)'}"></span><span>${escHtml(t.name)}</span>${pct !== 100 ? `<span class="teams__pct">${pct}%</span>` : ''}${t.owns.length ? `<small>owns ${escHtml(t.owns.join(', '))}</small>` : ''}</li>`).join('')}</ul>` : ''
 
-  const tags = p.tags.length ? `<div class="chips chips--tags" data-tags>${p.tags.map((t, i) => `<span class="chip chip--tag"${i >= TAG_LIMIT ? ' data-extra hidden' : ''}>${escHtml(t)}</span>`).join('')}${p.tags.length > TAG_LIMIT ? `<button type="button" class="chip chip--more" data-action="more-tags">+${p.tags.length - TAG_LIMIT}</button>` : ''}</div>` : ''
+  const tags = p.tags.length ? `<div class="chips chips--tags" data-tags>${p.tags.map((t, i) => `<span class="chip chip--tag"${i >= TAG_LIMIT ? ' data-extra hidden' : ''}>${escHtml(t)}</span>`).join('')}${p.tags.length > TAG_LIMIT ? `<button type="button" class="chip chip--more" data-action="more-tags" data-more="+${p.tags.length - TAG_LIMIT}" aria-expanded="false">+${p.tags.length - TAG_LIMIT}</button>` : ''}</div>` : ''
 
   const details = extras(p, model)
 

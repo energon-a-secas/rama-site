@@ -145,9 +145,10 @@ export async function loadExample({ first = false } = {}) {
 let warned = false
 /** Once per visit: storage is blocked, so nothing outlives the tab. */
 export function warnIfUnsaved() {
-  if (state.storageOk || warned) return
+  if (warned || (state.storageOk && !state.restoreFull)) return
   warned = true
-  toast('This browser is not keeping anything (storage is blocked), so this org lasts until you close the tab. Download it from the Org menu to keep it', 6000)
+  if (!state.storageOk) toast('This browser is not keeping anything (storage is blocked or full), so this org lasts until you close the tab. Download it from the Org menu to keep it', 6000)
+  else toast('Storage is full, so the org this one replaced could not go on the Restore list. Download the orgs you want to keep from the Org menu', 6000)
 }
 
 export const BLANK = `# Rama org document. Schema and examples: https://rama.neorgon.com/llms.txt

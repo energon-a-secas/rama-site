@@ -5,10 +5,8 @@
 // Each move is a history entry (?at=<id>), so Back walks back through the org.
 
 import { state, ui, person } from './state.js'
-import { focusView } from './tree.js'
 import { draw, announce } from './render.js'
-import { focusEl } from './render-chart.js'
-import { paintFocus } from './overview.js'
+import { focusEl, plan } from './render-chart.js'
 import { prefersReducedMotion } from './neorgon-dom.js'
 import { $ } from './utils.js'
 import { plural } from './core.js'
@@ -30,8 +28,7 @@ export function go(id, { push = true, focusDom = false } = {}) {
   const wasCards = document.querySelectorAll('#chart .node').length
   ui.focus = id
   if (ui.view === 'overview') {
-    paintFocus()
-    draw()
+    draw() // renderOverview repaints the path; a paintFocus() here ran it twice
     return
   }
   const apply = () => {
@@ -52,11 +49,8 @@ export function go(id, { push = true, focusDom = false } = {}) {
 
 const MAX_MORPH = 150
 
-/** How many cards the chart draws around id: the chain, the lead, the row, and each column up to its fold. */
-function cardsFor(ix, id) {
-  const v = focusView(ix, id)
-  return v.chain.length + 1 + v.row.length + v.columns.reduce((n, c) => n + Math.min(c.people.length, 9) + Math.min(c.external.length, 1) + Math.min(c.open.length, 1), 0)
-}
+/** How many cards the chart draws around id: render-chart.js decides, so this cannot drift from it. */
+const cardsFor = (ix, id) => plan(ix, id).cards
 
 /**
  * The page's frame (header, stage bar, panel, footer) gets a transition name

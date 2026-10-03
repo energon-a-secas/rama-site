@@ -261,11 +261,16 @@ function norm(value, known, aliases, fallback, label, who, ctx) {
 
 const TEXT_KEYS = ['name', 'role', 'title', 'location', 'country', 'tz', 'employment', 'status', 'photo', 'pronounced', 'notes', 'start']
 
-/** A real zone, by asking Intl when there is one; offsets like +2 and -3:30 by shape. */
+/** A real zone, by asking Intl when there is one; offsets like +2 and -3:30 by shape. Memoized: 5000 people share a handful of zones, and each Intl formatter costs tens of microseconds. */
+const zoneMemo = new Map()
 function validZone(tz) {
-  if (/^[+-]\d{1,2}(:\d{2})?$/.test(tz) || tz === 'UTC') return true
-  if (!/^[A-Za-z_]+(\/[A-Za-z0-9_+-]+)+$/.test(tz)) return false
-  try { new Intl.DateTimeFormat('en', { timeZone: tz }); return true } catch { return false }
+  if (zoneMemo.has(tz)) return zoneMemo.get(tz)
+  let ok
+  if (/^[+-]\d{1,2}(:\d{2})?$/.test(tz) || tz === 'UTC') ok = true
+  else if (!/^[A-Za-z_]+(\/[A-Za-z0-9_+-]+)+$/.test(tz)) ok = false
+  else { try { new Intl.DateTimeFormat('en', { timeZone: tz }); ok = true } catch { ok = false } }
+  if (zoneMemo.size < 2000) zoneMemo.set(tz, ok)
+  return ok
 }
 
 /** YYYY-MM-DD and a day that exists: 2024-02-30 is not a date. */

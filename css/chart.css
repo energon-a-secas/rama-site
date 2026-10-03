@@ -391,8 +391,9 @@ body[data-mode="overview"] .stage { overflow: hidden; cursor: default; }
 .ov-dot.is-path { stroke: var(--accent-bright); stroke-width: 2.5; animation: none; }
 .ov-dot.is-focus { stroke: #fff; stroke-width: 3; animation: none; filter: drop-shadow(0 0 8px var(--c)); }
 .ov-dot.is-me { animation: me-pulse 2.2s ease-out infinite; }
-/* A big org holds still: thousands of SVG opacity loops run on the main thread. */
+/* A big org holds still: thousands of SVG opacity loops run on the main thread, and the pulse repaints the whole drawing every frame. */
 .overview__svg.is-large .ov-dot { animation: none; }
+.overview__svg.is-large .ov-path--pulse { display: none; }
 @keyframes twinkle { 50% { opacity: 0.66; } }
 @keyframes me-pulse { 0%, 100% { transform: scale(1); } 30% { transform: scale(1.35); } }
 .ov-path {

@@ -84,26 +84,43 @@ export function renderOverview() {
   const ix = state.ix
   const svg = $('overviewSvg')
   if (!ix) return
-  const key = `${ui.colorBy}|${state.me.id}|${svg.clientWidth}x${svg.clientHeight}`
+  // The size is not in the key: a resize or the panel opening only rescales the marks, it does not rebuild 10,000 elements.
+  const key = `${ui.colorBy}|${state.me.id}`
   if (built.key !== key || built.ix !== ix) build(ix, svg, key)
+  else if (built.size !== sizeOf(svg)) rescale(svg)
   paintFocus()
   renderLegend()
 }
 
+const sizeOf = (svg) => `${svg.clientWidth}x${svg.clientHeight}`
+const unitsPerPixel = (svg, vb) => (svg.clientWidth && svg.clientHeight ? Math.max(vb[2] / svg.clientWidth, vb[3] / svg.clientHeight) : 1)
+
+/** A size-only change: new --u, and each dot's radius from its base (data-r). Labels already scale through --u. */
+function rescale(svg) {
+  const vb = svg.viewBox.baseVal
+  const k = unitsPerPixel(svg, [vb.x, vb.y, vb.width, vb.height])
+  svg.style.setProperty('--u', k.toFixed(3))
+  built.k = k
+  built.size = sizeOf(svg)
+  for (const el of built.dots.values()) el.setAttribute('r', (Number(el.dataset.r) * k).toFixed(1))
+}
+
 function build(ix, svg, key) {
   const { pos, extent, maxDepth } = layout(ix)
-  built = { key, ix, pos, extent, k: 1 }
+  built = { key, ix, pos, extent, k: 1, size: sizeOf(svg), dots: new Map() }
   // Fit the drawing, not the full circle: a lopsided org fills the frame instead of a corner of it.
   let minX = -40, minY = -40, maxX = 40, maxY = 40
   for (const at of pos.values()) { minX = Math.min(minX, at.x); maxX = Math.max(maxX, at.x); minY = Math.min(minY, at.y); maxY = Math.max(maxY, at.y) }
   const pad = 110
   const vb = [minX - pad, minY - pad, maxX - minX + pad * 2, maxY - minY + pad * 2]
   // k turns screen pixels into drawing units, so dots and labels keep their size in any window.
-  const k = svg.clientWidth && svg.clientHeight ? Math.max(vb[2] / svg.clientWidth, vb[3] / svg.clientHeight) : 1
+  const k = unitsPerPixel(svg, vb)
   svg.style.setProperty('--u', k.toFixed(3))
   svg.classList.toggle('is-large', ix.model.people.length > 400)
   built.k = k
-  const rings = Array.from({ length: maxDepth }, (_, i) => `<circle class="ov-ring" r="${radius(i + 1)}"/>`).join('')
+  // A ring only where it is at least 6px from the next one, and never more than 60: a 2000-level org drew 2000 dashed rings, repainted every frame.
+  const every = Math.max(1, Math.ceil((6 * k) / RING), Math.ceil(maxDepth / 60))
+  const rings = Array.from({ length: maxDepth }, (_, i) => i + 1).filter((d) => d % every === 0 || d === maxDepth).map((d) => `<circle class="ov-ring" r="${radius(d)}"/>`).join('')
   // A faint wedge per division, named at its rim: the org's shape before any dot is read.
   const outer = radius(maxDepth) + 26
   const wedges = []
@@ -130,9 +147,10 @@ function build(ix, svg, key) {
     const parent = ix.parentOf(id)
     if (parent) links.push(`<path class="ov-link" d="${linkPath(pos.get(parent), at)}"/>`)
     const size = ix.size.get(id)
-    const r = Math.min(10, 3.4 + Math.sqrt(size) * 0.9) * k
+    const base = Math.min(10, 3.4 + Math.sqrt(size) * 0.9)
+    const r = base * k
     const cls = ['ov-dot', p.status === 'open' && 'is-open', isExternal(p) && 'is-external', p.virtual && 'is-org', id === state.me.id && 'is-me'].filter(Boolean).join(' ')
-    dots.push(`<circle class="${cls}" data-person="${escHtml(id)}" cx="${at.x.toFixed(1)}" cy="${at.y.toFixed(1)}" r="${r.toFixed(1)}" style="--c:${colorOf(p)};--d:${(hash(id) % 4000) / 1000}s"/>`)
+    dots.push(`<circle class="${cls}" data-person="${escHtml(id)}" data-r="${base.toFixed(2)}" cx="${at.x.toFixed(1)}" cy="${at.y.toFixed(1)}" r="${r.toFixed(1)}" style="--c:${colorOf(p)};--d:${(hash(id) % 4000) / 1000}s"/>`)
     if (at.d === 0 || id === state.me.id) {
       const right = at.x >= -1
       const dx = at.d ? (right ? r + 6 * k : -(r + 6 * k)) : 0
@@ -144,6 +162,8 @@ function build(ix, svg, key) {
   const title = svg.querySelector('title')?.outerHTML || ''
   svg.innerHTML = `${title}<g id="ovWorld"><g class="ov-wedges">${wedges.join('')}</g><g class="ov-rings">${rings}</g><g class="ov-links">${links.join('')}</g>` +
     `<g id="ovPath"></g><g class="ov-dots">${dots.join('')}</g><g class="ov-labels">${labels.join('')}${rim.join('')}</g><g id="ovFocus"></g></g>`
+  // Every dot found once: paintFocus and the tooltip look them up by id on each move.
+  for (const el of svg.querySelectorAll('.ov-dot')) built.dots.set(el.dataset.person, el)
   applyView()
 }
 
@@ -163,7 +183,7 @@ export function paintFocus() {
   for (const el of $('overviewSvg').querySelectorAll('.ov-dot.is-focus, .ov-dot.is-path')) el.classList.remove('is-focus', 'is-path')
   const onPath = new Set(chain)
   for (const id of onPath) {
-    const el = $('overviewSvg').querySelector(`.ov-dot[data-person="${CSS.escape(id)}"]`)
+    const el = built.dots.get(id)
     if (el) el.classList.add(id === ui.focus ? 'is-focus' : 'is-path')
   }
   const f = built.pos.get(ui.focus)
@@ -280,5 +300,5 @@ export function bindOverview({ onPick, onHover }) {
 
 /** Where a person's dot is on screen, for the tooltip. */
 export function dotRect(id) {
-  return $('overviewSvg').querySelector(`.ov-dot[data-person="${CSS.escape(id)}"]`)?.getBoundingClientRect() || null
+  return built.dots?.get(id)?.getBoundingClientRect() || null
 }
