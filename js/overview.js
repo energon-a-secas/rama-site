@@ -214,6 +214,19 @@ export function fitOverview() {
   applyView()
 }
 
+/** Zoom about the middle of the drawing, for the + and - buttons (a wheel and a drag are not everyone's). */
+export function zoomOverview(factor) {
+  const svg = $('overviewSvg')
+  const vb = svg.viewBox.baseVal
+  const cx = vb.x + vb.width / 2
+  const cy = vb.y + vb.height / 2
+  const k = Math.min(6, Math.max(0.5, view.k * factor))
+  view.x = cx - ((cx - view.x) * k) / view.k
+  view.y = cy - ((cy - view.y) * k) / view.k
+  view.k = k
+  applyView()
+}
+
 function svgPoint(svg, e) {
   const m = svg.getScreenCTM()
   if (!m) return { x: 0, y: 0 }

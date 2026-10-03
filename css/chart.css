@@ -64,6 +64,7 @@ main#main.app {
   scrollbar-color: rgb(255 255 255 / 14%) transparent;
 }
 .stage:focus { outline: none; }
+.stage:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: -3px; }
 .stage.is-panning { cursor: grabbing; user-select: none; }
 body[data-mode="overview"] .stage { overflow: hidden; cursor: default; }
 
@@ -346,6 +347,7 @@ body[data-mode="overview"] .stage { overflow: hidden; cursor: default; }
   pointer-events: none;
 }
 .overview__bar > * { pointer-events: auto; }
+.zoom { display: inline-flex; gap: 2px; }
 .overview__color { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-secondary); font-size: var(--text-sm); white-space: nowrap; }
 .select--sm { min-height: 34px; padding: 0 var(--space-2); }
 .legend {
@@ -431,7 +433,6 @@ body[data-mode="overview"] .stage { overflow: hidden; cursor: default; }
   border-radius: 10px;
   background: rgb(10 14 32 / 94%);
   font-size: 0.8rem;
-  pointer-events: none;
   box-shadow: var(--shadow-card);
 }
 .tip span { color: var(--text-secondary); }

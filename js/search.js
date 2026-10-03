@@ -57,6 +57,9 @@ function combobox({ input, list, onPick, empty }) {
         : ''
     input.setAttribute('aria-activedescendant', ids.length ? `${list.id}-${active}` : '')
     input.setAttribute('aria-expanded', String(ids.length > 0))
+    // Say how many matched, for screen readers: the list itself changes silently.
+    const count = $('searchCount')
+    if (count && q.trim()) count.textContent = ids.length ? `${ids.length} ${ids.length === 1 ? 'person' : 'people'} found` : 'Nobody found'
   }
   const select = (i) => {
     active = (i + ids.length) % Math.max(1, ids.length)

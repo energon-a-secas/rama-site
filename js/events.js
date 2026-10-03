@@ -7,7 +7,7 @@ import { state, ui, person, savePrefs, refreshMe, trustDoc, COLOR_BY } from './s
 import { go, step, center, replaceAt } from './nav.js'
 import { draw, drawAll, renderHeader } from './render.js'
 import { renderChart } from './render-chart.js'
-import { bindOverview, fitOverview, renderOverview, dotRect } from './overview.js'
+import { bindOverview, fitOverview, zoomOverview, renderOverview, dotRect } from './overview.js'
 import { bindSearch, openSearch, openPicker } from './search.js'
 import { openEditor, applyEditor, switchFormat, bindEditor, editorReceive } from './editor.js'
 import { exportAs, handoff, downloadVcard, copyPersonLink, openText, loadExample, BLANK, restorePrevious, thisIsMe } from './actions.js'
@@ -119,6 +119,8 @@ function action(name, el) {
     case 'this-is-me': return thisIsMe(focus, true)
     case 'not-me': return thisIsMe(focus, false)
     case 'fit': return fitOverview()
+    case 'zoom-in': return zoomOverview(1.3)
+    case 'zoom-out': return zoomOverview(1 / 1.3)
     case 'allow-photos': trustDoc(); return drawAll()
     case 'signin': $('whoDialog').close(); return NeoAuth.openSignIn({ reason: 'Sign in and Rama finds your card by the email on your account.' })
     case 'more-tags':
@@ -143,10 +145,16 @@ function openHelp(el) {
 
 export function setView(v) {
   if (v === ui.view || !['chart', 'overview'].includes(v)) return
+  const hadFocus = document.activeElement
   ui.view = v
   savePrefs()
   draw()
   if (v === 'chart') center('instant')
+  // A card hidden by the switch takes focus with it: land on the focused card, or the stage.
+  if (!hadFocus || hadFocus === document.body || !hadFocus.isConnected || !hadFocus.getClientRects().length) {
+    const card = v === 'chart' ? document.querySelector('.node.is-focus') : null
+    ;(card || $('stage')).focus({ preventScroll: true })
+  }
 }
 
 const typing = (el) => el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))
@@ -158,6 +166,7 @@ const typing = (el) => el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$
  */
 function onKey(e) {
   if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) { e.preventDefault(); return openSearch(document.activeElement) }
+  if (e.key === 'Escape' && !$('tip').hidden) { $('tip').hidden = true; return }
   if (e.key !== 'Escape' || e.metaKey || e.ctrlKey || e.altKey || typing(e.target) || document.querySelector('dialog[open]')) return
   if (document.querySelector('.header-menu.open')) return
   if (ui.panel && !$('panel').hidden) { e.preventDefault(); togglePanel(false) }
@@ -214,9 +223,12 @@ function pickDot(id) {
   else go(id)
 }
 
+let tipTimer = 0
 function hoverDot(id) {
   const tip = $('tip')
-  if (!id) { tip.hidden = true; return }
+  clearTimeout(tipTimer)
+  // It lingers a moment so the pointer can reach it, and Escape dismisses it (WCAG 1.4.13).
+  if (!id) { tipTimer = setTimeout(() => { if (!tip.matches(':hover')) tip.hidden = true }, 350); return }
   const p = person(id)
   const r = dotRect(id)
   const box = $('overview').getBoundingClientRect()

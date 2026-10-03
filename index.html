@@ -181,7 +181,7 @@
         <button type="button" class="btn btn--ghost btn--sm" data-action="top" aria-keyshortcuts="Home"><span data-icon="top"></span><span class="seg__label">Top</span></button>
       </div>
     </div>
-    <div class="notice" id="notice" hidden></div>
+    <div class="notice" id="notice" role="status" aria-live="polite" hidden></div>
 
     <div class="workspace">
       <section class="stage" id="stage" tabindex="-1" aria-label="Org chart">
@@ -199,7 +199,11 @@
               </select>
             </label>
             <ul class="legend" id="legend" aria-label="Legend"></ul>
-            <button type="button" class="btn btn--ghost btn--sm" data-action="fit"><span data-icon="fit"></span><span>Fit</span></button>
+            <div class="zoom" role="group" aria-label="Zoom">
+              <button type="button" class="btn btn--ghost btn--sm btn--icon" data-action="zoom-out" aria-label="Zoom out"><span data-icon="minus"></span></button>
+              <button type="button" class="btn btn--ghost btn--sm btn--icon" data-action="zoom-in" aria-label="Zoom in"><span data-icon="plus"></span></button>
+              <button type="button" class="btn btn--ghost btn--sm" data-action="fit"><span data-icon="fit"></span><span>Fit</span></button>
+            </div>
           </div>
           <svg class="overview__svg" id="overviewSvg" role="img" aria-labelledby="overviewTitle"><title id="overviewTitle">The whole org as rings, the top at the centre</title></svg>
           <div class="tip" id="tip" role="status" hidden></div>
@@ -226,7 +230,8 @@
       <kbd>Esc</kbd>
     </div>
     <ul class="palette__results" id="searchResults" role="listbox" aria-label="People"></ul>
-    <p class="palette__hint" id="searchHint">Up and down to choose, Enter to go there.</p>
+    <p class="palette__hint">Up and down to choose, Enter to go there.</p>
+    <p class="sr-only" id="searchCount" aria-live="polite"></p>
   </dialog>
 
   <!-- Who are you: links this browser to one card. -->

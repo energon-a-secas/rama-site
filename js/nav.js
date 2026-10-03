@@ -80,9 +80,13 @@ export function center(behavior = 'smooth') {
   if (!el || ui.view !== 'chart') return
   const s = stage.getBoundingClientRect()
   const r = el.getBoundingClientRect()
+  // On a phone the profile is a sheet over the stage: aim for the part the sheet leaves visible (WCAG 2.4.11).
+  const panel = $('panel')
+  const sheet = !panel.hidden && getComputedStyle(panel).position === 'fixed' ? panel.getBoundingClientRect() : null
+  const visible = sheet ? Math.max(80, sheet.top - s.top) : s.height
   stage.scrollTo({
     left: stage.scrollLeft + (r.left + r.width / 2) - (s.left + s.width / 2),
-    top: stage.scrollTop + (r.top - s.top) - Math.max(24, s.height * 0.32),
+    top: stage.scrollTop + (r.top - s.top) - (sheet ? Math.max(12, (visible - r.height) / 2) : Math.max(24, visible * 0.32)),
     behavior: prefersReducedMotion() ? 'instant' : behavior,
   })
 }
@@ -105,7 +109,9 @@ export function replaceAt(id) {
 export function step(dir) {
   const ix = state.ix
   if (!ix) return
-  const id = ui.focus || ix.top
+  // Start from the card the keyboard is on, when it is on one: Tab can leave it away from the focused card.
+  const at = document.activeElement?.closest?.('.node[data-person]')?.dataset.person
+  const id = at && ix.has(at) ? at : ui.focus || ix.top
   let to = null
   if (dir === 'up') to = ix.parentOf(id)
   else if (dir === 'down') to = ix.kids(id)[0] || null
