@@ -61,7 +61,7 @@ people:
     team: core                   # optional; joins that team at 100% (an unknown name creates the team)
     location: Lagos, Nigeria
     country: NG                  # ISO 3166 two-letter code; Reparto plans that country's holidays
-    tz: Africa/Lagos             # IANA zone or an offset (+2); the profile shows their local time
+    tz: Africa/Lagos             # IANA zone or an offset (+2); the profile shows their local time and part of day, and the overview can colour everyone by it
     employment: employee         # employee (default) | contractor | vendor | intern
     status: active               # active (default) | open (an open role) | leave | incoming
     start: 2024-02-12            # the start date; with status incoming, when they join

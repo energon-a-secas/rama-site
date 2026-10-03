@@ -39,6 +39,10 @@ const MARKS = {
   intern: ['I', 'Intern'],
 }
 
+/** Where someone's day is (core.js dayPart), in words and as a colour. */
+export const DAY_WORDS = { work: 'Working hours', edge: 'Before or after work', night: 'Night', weekend: 'Weekend' }
+export const DAY_COLORS = { work: '#34d399', edge: '#fbbf24', night: '#818cf8', weekend: '#f472b6' }
+
 /** Status words for a card's badge, or ''. */
 export function statusWord(p) {
   if (p.status === 'open') return 'Open role'

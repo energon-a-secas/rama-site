@@ -28,13 +28,13 @@ reads the index `indexOrg()` builds from the model.
 |---|---|
 | `js/schema.js` | `normalizeOrg(raw)`: a parsed tree to `{ model, issues }` (people, roles, fields, profiles, extras, reporting lines, loop cutting); `orgToDoc(model)` back to a canonical tree. **The contract**, written out in `llms.txt` |
 | `js/teams.js`, `js/roles.js` | teams in Floorplan's group shape (member forms, shares, `person.team`); the built-in role catalogue and `guessTrack()` |
-| `js/tree.js` | `indexOrg()`: children, chain, depth, division, org size (people, never open seats), teams per person, stats, the virtual `__org` top; `focusView()`; `searchPeople()` with accent folding |
+| `js/tree.js` | `indexOrg()`: children, chain, depth, division, org size (people, never open seats), teams per person, stats, the virtual `__org` top; `focusView()`; `searchPeople()` with accent folding and `matchRange()` for marking a hit; `between()`, the closest shared manager and the route through them |
 | `js/handoff.js` | `toFloorplanDoc()` (team leads hand over as their team, other managers as reporting-line rooms, three levels, explicit ids) and `toRepartoDoc()` (one manager's direct reports, 40-character ids, 400 cap), plus the `#d=` and `#p=` links |
-| `js/formats.js`, `js/core.js` | CSV in and out, Mermaid, vCard; slug, `str()` (control characters out, no split surrogates), `safeUrl`, `safeColor`, `fieldHref`, base64url |
+| `js/formats.js`, `js/core.js` | CSV in and out, Mermaid, vCard; slug, `unfold()` (ł, ß and the other letters NFKD keeps whole, shared by ids and search), `str()` (control characters out, no split surrogates), `safeUrl`, `safeColor`, `fieldHref`, base64url; `clockAt()` and `dayPart()` for local time |
 | `js/docio.js`, `js/yaml.js` | text in and out: format sniffing, `readDoc()`, `#d=`, `?src=`; js-yaml with CORE_SCHEMA to read and the default schema to write |
 | `js/state.js`, `js/me.js` | the document text and model, view state (`ui`), preferences, the per-org "this is me" pick; `resolveMe()` (`?me=` > picked > account email) |
 | `js/render.js`, `js/render-chart.js`, `js/wires.js` | the page and the chart: chain pills, lead card, row, columns, buckets; wires measured from the laid-out cards |
-| `js/overview.js` | the radial overview: division wedges, rings, the lit path, pan and zoom, colour modes and the legend |
+| `js/overview.js` | the radial overview: division wedges, rings, the lit path and the visitor's violet route to it, pan and zoom, colour modes and the legend |
 | `js/panel.js`, `js/people.js`, `js/markdown.js` | the profile panel; avatars, hues, status words and card labels; escape-first markdown |
 | `js/nav.js` | `go(id)`, the only way the focus changes: view transitions, history (`?at=`), arrow-key steps |
 | `js/search.js`, `js/editor.js`, `js/actions.js`, `js/boot.js`, `js/menus.js`, `js/events.js` | the palette and the picker, the document editor, exports and handoffs, the first document and card, header menus, wiring |
@@ -59,6 +59,8 @@ Vendored from `packages/neorgon-ui/`, never edit in place: `js/neorgon-{header,f
 - **`plan()` in render-chart.js decides what the chart draws**: the chain folds to the top plus four levels, the row to twelve peers around the focus, each column to eight. The view-transition gate in nav.js counts cards from the same `plan()`, and past 150 cards a move cuts instead of morphing. Draw something new in the chart, count it in `plan()`.
 - **The panel renders before the chart.** Opening it narrows the stage, and `drawWires()` measures the final layout. Swap the order and every wire points at air.
 - **Nothing on `<body>` may carry `data-view`.** The click delegation asks for `button[data-view]`; a `data-view` on the body once swallowed every action button. The body's view flag is `data-mode`.
+- **Every count on the page is people, never open seats**: the stage bar, the overview legend and the wedge labels agree. Open roles get a legend row of their own only when colouring by employment.
+- **Local time goes stale on an open tab.** In that colour mode the overview's build key carries a quarter-hour stamp, so the first move after it turns over recolours the dots; nothing ticks on its own.
 - **The overview sizes marks in screen pixels.** `--u` on the SVG is drawing units per pixel, set when the overview is built (its key includes the SVG's size), and labels, the path and the halo multiply by it.
 - **Floorplan slugs with NFD, Rama with NFKD.** The handoff writes every person's `id` explicitly so the two never disagree. Floorplan caps ids at 48, Reparto at 40; `toRepartoDoc` shortens and de-duplicates.
 - **Profiles resolve once, before any person reads one** (`resolveProfiles` in schema.js), in declaration order and at most 32 deep. Resolving on demand was exponential for a diamond of shared parents (a short link hung the tab), made a cycle come out differently depending on who extended it first, and overflowed the stack on a long chain. Floorplan groups use the same profiles (`applyTeamProfile`: scalars override, `members` and `owns` add up).

@@ -5,10 +5,12 @@
 /** Letters NFKD leaves whole: without these, "Łukasz" and "Søren" lose a letter in their ids. */
 const FOLD = { ł: 'l', Ł: 'L', ø: 'o', Ø: 'O', đ: 'd', Đ: 'D', ß: 'ss', æ: 'ae', Æ: 'AE', œ: 'oe', Œ: 'OE', þ: 'th', Þ: 'Th', ð: 'd', Ð: 'D', ħ: 'h', Ħ: 'H', ı: 'i' }
 
+/** Spell out the letters NFKD leaves whole, for ids and for search ("lukasz" finds "Łukasz"). */
+export const unfold = (s) => s.replace(/[łŁøØđĐßæÆœŒþÞðÐħĦı]/g, (c) => FOLD[c])
+
 /** A stable id from a name: lowercase ascii, hyphens, max 48 chars, the same cap as Floorplan so ids survive the handoff. */
 export function slug(s) {
-  return String(s ?? '')
-    .replace(/[łŁøØđĐßæÆœŒþÞðÐħĦı]/g, (c) => FOLD[c])
+  return unfold(String(s ?? ''))
     .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
     .slice(0, 48).replace(/-+$/, '')
@@ -116,4 +118,50 @@ export function fieldHref(def, value) {
     try { return safeUrl(def.prefix + encodeURIComponent(value)) } catch { return '' }
   }
   return safeUrl(value)
+}
+
+// ── Clocks ───────────────────────────────────────────────────
+const OFFSET = /^([+-])(\d{1,2})(?::(\d{2}))?$/
+
+/** "+2" becomes an Etc zone Intl understands; IANA names pass through. Throws on a half-hour offset, which has no Etc zone. */
+export function tzName(tz) {
+  const m = OFFSET.exec(tz)
+  if (!m) return tz
+  if (m[3] && m[3] !== '00') throw new Error('Intl has no half-hour Etc zones')
+  return `Etc/GMT${m[1] === '+' ? '-' : '+'}${Number(m[2])}`
+}
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const clocks = new Map()
+
+/** The time of day at a zone (hour 0 to 24, minutes as a fraction) and the weekday (0 is Sunday), or null for a zone Intl does not know. */
+export function clockAt(tz, now = new Date()) {
+  const m = OFFSET.exec(tz || '')
+  if (m) {
+    const t = new Date(now.getTime() + (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3] || 0)) * 6e4)
+    return { hour: t.getUTCHours() + t.getUTCMinutes() / 60, day: t.getUTCDay() }
+  }
+  if (!tz) return null
+  try {
+    // One formatter per zone: a 5000-person org shares a handful, and each costs tens of microseconds.
+    if (!clocks.has(tz)) clocks.set(tz, new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: 'numeric', weekday: 'short', hourCycle: 'h23' }))
+    const parts = clocks.get(tz).formatToParts(now)
+    const get = (type) => parts.find((x) => x.type === type)?.value
+    return { hour: (Number(get('hour')) % 24) + Number(get('minute')) / 60, day: WEEKDAYS.indexOf(get('weekday')) }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Where someone's day is: night (22 to 7, any day), weekend (the waking hours
+ * of a Saturday or Sunday), work (9 to 18 on a weekday), edge (the weekday's
+ * 7 to 9 and 18 to 22), or none without a clock. Night comes first, so a
+ * weekend view still shows who is asleep.
+ */
+export function dayPart(clock) {
+  if (!clock) return 'none'
+  if (clock.hour < 7 || clock.hour >= 22) return 'night'
+  if (clock.day === 0 || clock.day === 6) return 'weekend'
+  return clock.hour >= 9 && clock.hour < 18 ? 'work' : 'edge'
 }

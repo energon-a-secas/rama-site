@@ -5,7 +5,7 @@
 // gets a virtual top named after the org, so every chart has one root.
 // Pure: no DOM.
 
-import { slug } from './core.js'
+import { slug, unfold } from './core.js'
 
 export const ORG_ROOT = '__org'
 
@@ -102,8 +102,32 @@ function orgStats(model, ix) {
 
 export const isExternal = (p) => p.employment === 'contractor' || p.employment === 'vendor'
 
-/** Lowercase, accents folded, runs of whitespace (including NBSP) as one space: "José  Pérez" finds "jose perez". */
-export const fold = (s) => String(s ?? '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+/** Lowercase, accents and letters like ł and ß folded, runs of whitespace (including NBSP) as one space: "José  Pérez" finds "jose perez". */
+export const fold = (s) => unfold(String(s ?? '')).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+
+/**
+ * Where a search hit sits in the original text, as [start, end) indices of
+ * `text`, or null. Folds the text a character at a time so an accented name
+ * ("José") marks the right letters for a plain query ("jose").
+ */
+export function matchRange(text, query) {
+  const q = fold(query)
+  if (!q) return null
+  const s = String(text ?? '')
+  let folded = ''
+  const owner = [] // owner[k]: the index in s of the character that folded into folded[k]
+  for (let i = 0; i < s.length;) {
+    const ch = String.fromCodePoint(s.codePointAt(i))
+    const f = unfold(ch).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s/g, ' ')
+    for (let j = 0; j < f.length; j++) owner.push(i)
+    folded += f
+    i += ch.length
+  }
+  const k = folded.indexOf(q)
+  if (k < 0) return null
+  const last = owner[k + q.length - 1]
+  return [owner[k], last + String.fromCodePoint(s.codePointAt(last)).length]
+}
 
 /** Search people by name, title, team, tags, location or email; best matches first. */
 export function searchPeople(ix, query, limit = 12) {
@@ -157,4 +181,20 @@ export function splitReports(ix, ids) {
     else out.people.push(id)
   }
   return out
+}
+
+/**
+ * How two people are connected: the closest manager they share (`via`), the
+ * route up from a to it and down from it to b (both ends included), and the
+ * number of steps. When a is above b, `up` is just [a]; when below, `down` is
+ * just [b]. Under a virtual top the shared manager can be the org itself.
+ */
+export function between(ix, a, b) {
+  if (!ix.has(a) || !ix.has(b)) return null
+  const ca = ix.chain(a)
+  const cb = ix.chain(b)
+  let i = 0
+  while (i < ca.length && i < cb.length && ca[i] === cb[i]) i++
+  if (!i) return null
+  return { via: ca[i - 1], up: ca.slice(i - 1).reverse(), down: cb.slice(i - 1), steps: ca.length - i + (cb.length - i) }
 }

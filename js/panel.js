@@ -7,9 +7,10 @@
 import { state, ui, person } from './state.js'
 import { CORE_KEYS } from './schema.js'
 import { escHtml, $ } from './utils.js'
-import { avatar, statusWord, employmentWord, shortDate, hueOf } from './people.js'
+import { avatar, statusWord, employmentWord, shortDate, hueOf, DAY_WORDS } from './people.js'
 import { renderMarkdown } from './markdown.js'
-import { fieldHref, plural } from './core.js'
+import { fieldHref, plural, tzName, clockAt, dayPart } from './core.js'
+import { between } from './tree.js'
 import { icon } from './icons.js'
 
 const TAG_LIMIT = 6
@@ -50,7 +51,12 @@ function profile(p) {
   p.email.forEach((e, i) => contact.push(row('mail', `<a href="mailto:${escHtml(e)}">${escHtml(e)}</a>`, i ? '' : `<button type="button" class="btn-icon" data-copy="${escHtml(e)}" aria-label="Copy ${escHtml(e)}">${icon('copy', { size: 14 })}</button>`)))
   if (!p.virtual && p.status !== 'open') contact.push(row('card', `<button type="button" class="btn-link" data-action="vcard">Download contact.vcf</button>`))
   if (p.location || p.country) contact.push(row('pin', escHtml(place(p))))
-  if (p.tz) contact.push(row('clock', `<span data-localtime="${escHtml(p.tz)}">${escHtml(localTime(p.tz))}</span>`))
+  if (p.tz) {
+    const clock = clockAt(p.tz)
+    const part = dayPart(clock)
+    const word = part === 'edge' ? (clock.hour < 12 ? 'Before work' : 'After work') : DAY_WORDS[part]
+    contact.push(row(part === 'night' ? 'moon' : 'clock', `<span data-localtime="${escHtml(p.tz)}">${escHtml(localTime(p.tz))}</span>${word ? ` <span class="tag tag--day tag--${part}">${escHtml(word)}</span>` : ''}`))
+  }
 
   const org = []
   if (manager) org.push(dl('Reports to', personLink(manager)))
@@ -75,12 +81,44 @@ function profile(p) {
   return hero + orgNotes +
     section('Contact', contact.join('')) +
     section('Org', org.join('')) +
+    connection(p) +
     (teamHtml ? section(teams.length > 1 ? 'Teams' : 'Team', teamHtml) : '') +
     (tags ? section('Expertise', tags) : '') +
     (details ? section('Details', details) : '') +
     (p.notes ? section('Notes', `<div class="prose">${renderMarkdown(p.notes)}</div>`) : '') +
     actions(p, isMe, reports.length)
 }
+
+/**
+ * How the visitor and this person are connected, once the visitor has a card:
+ * the manager they share and the people between, so "who is this to me" has
+ * an answer without walking the chart.
+ */
+function connection(p) {
+  const ix = state.ix
+  const me = person(state.me.id)
+  if (!me || me.id === p.id || p.virtual || p.status === 'open') return ''
+  const r = between(ix, me.id, p.id)
+  if (!r) return ''
+  const via = person(r.via)
+  const up = r.up.length - 1
+  const down = r.down.length - 1
+  let line
+  if (r.via === p.id) line = up === 1 ? 'Your manager.' : up === 2 ? "Your manager's manager." : `${up} levels above you, in your reporting line.`
+  else if (r.via === me.id) line = down === 1 ? 'Reports to you.' : `In your org, ${down} levels below you.`
+  else if (via.virtual) line = 'Nobody in this document sits above both of you.'
+  else if (up === 1 && down === 1) line = `Your peer: you both report to ${via.name}.`
+  else line = `${via.name} is the closest manager you share, ${plural(r.steps, 'step')} from you to ${firstName(p)}.`
+  const stop = (id, who) => `<li class="route__stop${id === r.via ? ' is-via' : ''}">${who === 'here' ? `<span class="route__here">${escHtml(person(id).name)}</span>` : chip(person(id), who === 'me' ? 'You' : '')}</li>`
+  const gap = (n) => (n > 0 ? `<li class="route__gap"><span aria-hidden="true">${n}</span><span class="sr-only">${escHtml(plural(n, 'person', 'people'))} between</span></li>` : '')
+  const stops = [stop(me.id, 'me')]
+  if (r.via !== me.id && r.via !== p.id) stops.push(gap(up - 1), via.virtual ? '' : stop(r.via), gap(down - 1))
+  else stops.push(gap(Math.max(up, down) - 1))
+  stops.push(stop(p.id, 'here'))
+  return section(`You and ${firstName(p)}`, `<p class="route__line">${escHtml(line)}</p><ol class="route" aria-label="The reporting line between you">${stops.join('')}</ol>`)
+}
+
+const firstName = (p) => p.name.split(/\s+/)[0] || p.name
 
 function orgSummary(p) {
   const s = state.ix.stats
@@ -139,7 +177,7 @@ const row = (glyph, body, after = '') => `<p class="panel__row">${icon(glyph, { 
 /** valueHtml is markup the caller already escaped, or a number. */
 const dl = (label, valueHtml) => `<div class="panel__dl"><span class="panel__dt">${escHtml(label)}</span><span class="panel__dd">${valueHtml}</span></div>`
 const personLink = (q) => (q ? `<button type="button" class="btn-link" data-person="${escHtml(q.id)}">${escHtml(q.name)}</button>` : '')
-const chip = (q) => `<button type="button" class="chip chip--person" data-person="${escHtml(q.id)}" style="--hue:${hueOf(q.id)}">${escHtml(q.name)}</button>`
+const chip = (q, label = '') => `<button type="button" class="chip chip--person" data-person="${escHtml(q.id)}" style="--hue:${hueOf(q.id)}"${label ? ` aria-label="${escHtml(`${label}, ${q.name}`)}"` : ''}>${escHtml(label || q.name)}</button>`
 
 export const humanize = (k) => String(k).replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/^./, (c) => c.toUpperCase())
 
@@ -168,14 +206,6 @@ export function localTime(tz) {
   } catch {
     return tz
   }
-}
-
-/** "+2" and "-3:30" become Etc zones Intl understands; IANA names pass through. */
-function tzName(tz) {
-  const m = /^([+-])(\d{1,2})(?::(\d{2}))?$/.exec(tz)
-  if (!m) return tz
-  if (m[3] && m[3] !== '00') throw new Error('Intl has no half-hour Etc zones')
-  return `Etc/GMT${m[1] === '+' ? '-' : '+'}${Number(m[2])}`
 }
 
 function tenure(iso) {

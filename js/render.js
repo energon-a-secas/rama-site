@@ -9,6 +9,7 @@ import { renderPanel } from './panel.js'
 import { escHtml, $ } from './utils.js'
 import { plural } from './core.js'
 import { icon } from './icons.js'
+import { prefersReducedMotion } from './neorgon-dom.js'
 
 let lastView = null
 
@@ -20,6 +21,15 @@ export function draw() {
   if (ui.view === 'chart') lastView = renderChart()
   else renderOverview()
   renderHeader()
+  paintEdges()
+}
+
+/** The stage fades at an edge where the chart carries on past it, so a card cut by the frame reads as "scroll for more", not as a bug. */
+export function paintEdges() {
+  const s = $('stage')
+  const chart = ui.view === 'chart'
+  s.classList.toggle('is-more-left', chart && s.scrollLeft > 2)
+  s.classList.toggle('is-more-right', chart && s.scrollLeft < s.scrollWidth - s.clientWidth - 2)
 }
 
 export function drawAll() {
@@ -54,7 +64,31 @@ function renderStagebar() {
     [s.teams, 'team'],
     [s.open, 'open role'],
   ].filter(([n], i) => n || i === 0)
-  $('orgStats').innerHTML = items.map(([n, one, many]) => `<li><b>${n}</b> ${escHtml(plural(n, one, many).replace(/^\d+ /, ''))}</li>`).join('')
+  const animate = !prefersReducedMotion() && !document.hidden
+  const jobs = []
+  $('orgStats').innerHTML = items.map(([n, one, many]) => {
+    const from = counted.get(one) ?? 0
+    counted.set(one, n)
+    if (animate && from !== n) jobs.push({ key: one, from, to: n })
+    return `<li><b data-k="${escHtml(one)}">${animate ? from : n}</b> ${escHtml(plural(n, one, many).replace(/^\d+ /, ''))}</li>`
+  }).join('')
+  countUp(jobs)
+}
+
+const counted = new Map() // what each number on the stage bar last settled at
+
+/** The numbers roll from what they were to what they are: a new org arrives counting, an edit ticks. The words beside them are already final. */
+function countUp(jobs) {
+  if (!jobs.length) return
+  const els = jobs.map((j) => $('orgStats').querySelector(`b[data-k="${CSS.escape(j.key)}"]`))
+  const t0 = performance.now()
+  const tick = (t) => {
+    const x = Math.min(1, (t - t0) / 760)
+    const e = 1 - (1 - x) ** 3
+    jobs.forEach((j, i) => { if (els[i]?.isConnected) els[i].textContent = String(Math.round(j.from + (j.to - j.from) * e)) })
+    if (x < 1) requestAnimationFrame(tick)
+  }
+  requestAnimationFrame(tick)
 }
 
 function renderNotice() {

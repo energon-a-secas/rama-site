@@ -5,7 +5,7 @@
 
 import { state, ui, person, savePrefs, refreshMe, trustDoc, COLOR_BY } from './state.js'
 import { go, step, center, replaceAt } from './nav.js'
-import { draw, drawAll, renderHeader, announce } from './render.js'
+import { draw, drawAll, renderHeader, announce, paintEdges } from './render.js'
 import { renderChart } from './render-chart.js'
 import { bindOverview, fitOverview, zoomOverview, renderOverview, dotRect } from './overview.js'
 import { bindSearch, openSearch, openPicker } from './search.js'
@@ -19,6 +19,7 @@ import { NeoAuth } from './neorgon-auth.js'
 import { init as initKeys } from './neokeys/index.js'
 import { escHtml, debounce, copyText, showToast, $ } from './utils.js'
 import { plural } from './core.js'
+import { localTime } from './panel.js'
 
 let fileTarget = 'app'
 
@@ -41,7 +42,7 @@ export function bindEvents() {
   })
   window.addEventListener('hashchange', () => { if (location.hash.startsWith('#d=')) location.reload() })
   // The overview rebuilds when its size changed, so dots and labels keep their screen size.
-  window.addEventListener('resize', debounce(() => { if (ui.view === 'chart') renderChart(); else renderOverview() }, 150))
+  window.addEventListener('resize', debounce(() => { if (ui.view === 'chart') renderChart(); else renderOverview(); paintEdges() }, 150))
   $('colorBy').addEventListener('change', (e) => {
     if (!COLOR_BY.includes(e.target.value)) return
     ui.colorBy = e.target.value
@@ -241,7 +242,8 @@ function hoverDot(id) {
   const box = $('overview').getBoundingClientRect()
   if (!p || !r) return
   const n = state.ix.size.get(id)
-  tip.innerHTML = `<strong>${escHtml(p.name)}</strong><span>${escHtml(p.title || '')}</span>${n ? `<span class="tip__n">${escHtml(plural(n, 'person', 'people'))} in their org</span>` : ''}`
+  const clock = ui.colorBy === 'time' && p.tz ? `<span class="tip__n">${escHtml(localTime(p.tz))}</span>` : ''
+  tip.innerHTML = `<strong>${escHtml(p.name)}</strong><span>${escHtml(p.title || '')}</span>${clock}${n ? `<span class="tip__n">${escHtml(plural(n, 'person', 'people'))} in their org</span>` : ''}`
   tip.hidden = false
   tip.style.left = `${Math.min(box.width - 220, Math.max(8, r.left - box.left + r.width / 2 - 100))}px`
   tip.style.top = `${Math.max(8, r.top - box.top - 64)}px`
@@ -280,6 +282,13 @@ function bindPan() {
   const end = () => { pan = null; stage.classList.remove('is-panning') }
   stage.addEventListener('pointerup', end)
   stage.addEventListener('pointercancel', end)
+  // The edge fades follow the scroll, once a frame at most.
+  let queued = false
+  stage.addEventListener('scroll', () => {
+    if (queued) return
+    queued = true
+    requestAnimationFrame(() => { queued = false; paintEdges() })
+  }, { passive: true })
 }
 
 function bindDrop() {

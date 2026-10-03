@@ -21,7 +21,7 @@ const KEEP_PREVIOUS = 8
 const prefStore = createStore({ key: 'rama-site:preferences', version: 1 })
 
 export const VIEWS = ['chart', 'overview']
-export const COLOR_BY = ['branch', 'team', 'track', 'employment', 'country']
+export const COLOR_BY = ['branch', 'team', 'track', 'employment', 'country', 'time']
 
 export const state = {
   text: '',

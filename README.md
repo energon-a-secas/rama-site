@@ -44,11 +44,12 @@ go to Floorplan as rooms or to Reparto as a sprint plan through a link, with not
 - **Starts with you** -- a `?me=` link, the card you picked, or the email on your Neorgon account puts you at the centre; with none of them it opens at the top
 - **Walk the org** -- click anyone, or use the arrow keys: up to the manager, down to the first report, across to peers; Back walks back
 - **Cards that move** -- every card morphs from where it was to where it lands, and the line from the top down to the focused person carries a travelling pulse
-- **The whole org at once** -- the overview draws divisions as wedges and levels as rings, coloured by division, team, track, employment or country
+- **The whole org at once** -- the overview draws divisions as wedges and levels as rings, coloured by division, team, track, employment, country, or local time (who is in working hours right now)
+- **You and them** -- once you have a card, every profile says how you are connected: the closest manager you share and how many people sit between, drawn as a violet route in the overview
 - **Profiles with your own fields** -- contact, local time, reporting line, teams with splits, expertise, and any extra key the document carries, labelled and typed through `fields:`
 - **Contractors and open roles fold away** -- they collapse into buckets under each manager and open in place
 - **One document, three tools** -- hand a manager's org to Floorplan as rooms or their team to Reparto as a capacity plan, through the links those tools already read
-- **Search** -- `/` finds people by name, title, team, skill, city or email, accents folded
+- **Search** -- `/` finds people by name, title, team, skill, city or email, accents and letters like ł and ß folded, the match highlighted
 - **Every way in** -- the editor validates as you type, and YAML, JSON, CSV from an HR tool, Floorplan documents, `#d=` links and `?src=` URLs all go through the same gate
 - **Every way out** -- YAML with comments kept, JSON, CSV with formula cells neutralised, Mermaid, a vCard per person, share links, and a ready prompt for Claude
 

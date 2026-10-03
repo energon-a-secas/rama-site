@@ -4,7 +4,7 @@
 // focus, arrow keys move aria-activedescendant, Enter takes the selected row.
 
 import { state, ui, person, setPicked } from './state.js'
-import { searchPeople } from './tree.js'
+import { searchPeople, matchRange } from './tree.js'
 import { escHtml, showToast, $ } from './utils.js'
 import { openDialog } from './dialogs.js'
 import { avatar } from './people.js'
@@ -15,6 +15,13 @@ function crumb(id) {
   const ix = state.ix
   const chain = ix.chain(id).slice(0, -1).filter((x) => !person(x).virtual)
   return chain.slice(-2).map((x) => person(x).name).join(' › ')
+}
+
+/** Text with the part the query matched in <mark>, escaped either way. */
+function marked(text, q) {
+  const r = q.trim() ? matchRange(text, q) : null
+  if (!r) return escHtml(text)
+  return `${escHtml(text.slice(0, r[0]))}<mark>${escHtml(text.slice(r[0], r[1]))}</mark>${escHtml(text.slice(r[1]))}`
 }
 
 /** Why a row matched, when it was not the name. */
@@ -48,8 +55,9 @@ function combobox({ input, list, onPick, empty, count }) {
         const p = person(id)
         const hint = why(p, q)
         return `<li role="option" id="${list.id}-${i}" class="result" data-pick="${escHtml(id)}" aria-selected="${i === active}">` +
-          `${avatar(p, 'sm')}<span class="result__text"><span class="result__name">${escHtml(p.name)}${id === state.me.id ? ' <span class="tag tag--you">You</span>' : ''}</span>` +
-          `<span class="result__title">${escHtml(p.title || '')}${hint ? ` <span class="result__why">${escHtml(hint)}</span>` : ''}</span></span>` +
+          `${avatar(p, 'sm')}<span class="result__text"><span class="result__name">${marked(p.name, q)}${id === state.me.id ? ' <span class="tag tag--you">You</span>' : ''}</span>` +
+          // The title is marked only when the name did not match, so one row never lights up twice.
+          `<span class="result__title">${matchRange(p.name, q) ? escHtml(p.title || '') : marked(p.title || '', q)}${hint ? ` <span class="result__why">${marked(hint, q)}</span>` : ''}</span></span>` +
           `<span class="result__crumb">${escHtml(crumb(id))}</span></li>`
       }).join('')
       : q.trim()
@@ -72,6 +80,8 @@ function combobox({ input, list, onPick, empty, count }) {
     if (e.key === 'ArrowDown') { e.preventDefault(); select(active + 1) }
     else if (e.key === 'ArrowUp') { e.preventDefault(); select(active - 1) }
     else if (e.key === 'Enter' && ids[active]) { e.preventDefault(); onPick(ids[active]) }
+    // A search field's own Escape clears it and keeps the dialog open; here Escape always closes, like any palette.
+    else if (e.key === 'Escape') { e.preventDefault(); input.closest('dialog')?.close() }
   })
   list.addEventListener('click', (e) => {
     const li = e.target.closest('[data-pick]')

@@ -1,16 +1,17 @@
 // ── The overview ─────────────────────────────────────────────
 // The whole org at once: the top person at the centre, each level a ring
 // further out, each division a wedge sized by how many people it holds. The
-// path from the centre to the focused person is drawn bright; the visitor's
-// own dot pulses. The rings and dots are built once per document and colour
-// mode; a focus change only repaints the path and three classes.
+// path from the centre to the focused person is drawn bright, and the route
+// from the visitor's own dot to it violet; the visitor's dot pulses. The rings
+// and dots are built once per document and colour mode; a focus change only
+// repaints the paths and three classes.
 
 import { state, ui, person } from './state.js'
-import { isExternal } from './tree.js'
+import { isExternal, between } from './tree.js'
 import { TRACK_COLORS } from './roles.js'
-import { hash, safeColor } from './core.js'
+import { hash, safeColor, clockAt, dayPart } from './core.js'
 import { escHtml, $ } from './utils.js'
-import { hueOf } from './people.js'
+import { hueOf, DAY_WORDS, DAY_COLORS } from './people.js'
 import { plural } from './core.js'
 
 const FIRST_RING = 78
@@ -65,6 +66,7 @@ function colorOf(p) {
   if (by === 'track') return TRACK_COLORS[p.track] || OTHER
   if (by === 'employment') return p.status === 'open' ? OTHER : EMPLOYMENT_COLORS[p.employment] || OTHER
   if (by === 'country') return p.country ? `hsl(${hash(p.country) % 360} 72% 62%)` : OTHER
+  if (by === 'time') return p.status === 'open' ? OTHER : DAY_COLORS[dayPart(clockAt(p.tz))] || OTHER
   if (by === 'team') {
     const t = state.ix.teamById.get(p.team) || state.ix.teamById.get((state.ix.teamsOf.get(p.id) || [])[0]?.team)
     return t ? safeColor(t.color, `hsl(${hash(t.id) % 360} 70% 62%)`) : OTHER
@@ -85,7 +87,8 @@ export function renderOverview() {
   const svg = $('overviewSvg')
   if (!ix) return
   // The size is not in the key: a resize or the panel opening only rescales the marks, it does not rebuild 10,000 elements.
-  const key = `${ui.colorBy}|${state.me.id}`
+  // Local time goes stale: the key turns over every quarter hour, so the next move after that recolours.
+  const key = `${ui.colorBy}|${state.me.id}|${ui.colorBy === 'time' ? Math.floor(Date.now() / 9e5) : ''}`
   if (built.key !== key || built.ix !== ix) build(ix, svg, key)
   else if (built.size !== sizeOf(svg)) rescale(svg)
   paintFocus()
@@ -103,6 +106,26 @@ function rescale(svg) {
   built.k = k
   built.size = sizeOf(svg)
   for (const el of built.dots.values()) el.setAttribute('r', (Number(el.dataset.r) * k).toFixed(1))
+  fitRim(svg)
+}
+
+/** Each division's name sits just outside its wedge; one that would run off the frame reads inwards from the rim instead. */
+function fitRim(svg) {
+  const vb = svg.viewBox.baseVal
+  const k = built.k
+  const place = (t, r, inward) => {
+    const a = Number(t.dataset.a)
+    const x = Math.sin(a) * r
+    t.setAttribute('x', x.toFixed(1))
+    t.setAttribute('y', (-Math.cos(a) * r + 4 * k).toFixed(1))
+    t.setAttribute('text-anchor', Math.abs(x) < 30 ? 'middle' : (x > 0) !== inward ? 'start' : 'end')
+  }
+  for (const t of svg.querySelectorAll('.ov-rim')) {
+    const outer = Number(t.dataset.r)
+    place(t, outer + 10 * k, false)
+    const b = t.getBBox()
+    if (b.width && (b.x < vb.x || b.x + b.width > vb.x + vb.width || b.y < vb.y || b.y + b.height > vb.y + vb.height)) place(t, outer - 14 * k, true)
+  }
 }
 
 function build(ix, svg, key) {
@@ -131,11 +154,9 @@ function build(ix, svg, key) {
     const hue = hueOf(id)
     wedges.push(`<path class="ov-wedge" data-person="${escHtml(id)}" d="${sector(at.a0 + gap, at.a1 - gap, 34, outer)}" style="--c:hsl(${hue} 72% 60%)"/>`)
     if (at.a1 - at.a0 > 0.22) {
-      const lx = Math.sin(at.a) * (outer + 10 * k)
-      const ly = -Math.cos(at.a) * (outer + 10 * k)
-      const anchor = Math.abs(lx) < 30 ? 'middle' : lx > 0 ? 'start' : 'end'
-      const n = ix.size.get(id) + 1
-      rim.push(`<text class="ov-rim" x="${lx.toFixed(1)}" y="${(ly + 4 * k).toFixed(1)}" text-anchor="${anchor}" style="--c:hsl(${hue} 80% 72%)">${escHtml(person(id).name)}<tspan class="ov-rim__n" dx="6">${n}</tspan></text>`)
+      // People, as the legend and the stage bar count them: the division's head plus their org, never open seats.
+      const n = ix.size.get(id) + (person(id).status === 'open' ? 0 : 1)
+      rim.push(`<text class="ov-rim" data-a="${at.a.toFixed(4)}" data-r="${outer}" style="--c:hsl(${hue} 80% 72%)">${escHtml(person(id).name)}<tspan class="ov-rim__n" dx="6">${n}</tspan></text>`)
     }
   }
   const links = []
@@ -164,6 +185,7 @@ function build(ix, svg, key) {
     `<g id="ovPath"></g><g class="ov-dots">${dots.join('')}</g><g class="ov-labels">${labels.join('')}${rim.join('')}</g><g id="ovFocus"></g></g>`
   // Every dot found once: paintFocus and the tooltip look them up by id on each move.
   for (const el of svg.querySelectorAll('.ov-dot')) built.dots.set(el.dataset.person, el)
+  fitRim(svg)
   applyView()
 }
 
@@ -177,9 +199,13 @@ export function paintFocus() {
   const g = $('ovPath')
   if (!g) return
   const d = segs.join('')
-  g.innerHTML = d ? `<path class="ov-path" d="${d}"/><path class="ov-path ov-path--pulse" d="${d}"/>` : ''
-  const glow = g.querySelector('.ov-path')
-  if (glow) glow.style.setProperty('--len', String(Math.ceil(glow.getTotalLength())))
+  // The visitor's own way in: from their dot up to the manager they share with the focus, where it meets the bright path.
+  const r = state.me.id && ui.focus && state.me.id !== ui.focus ? between(ix, state.me.id, ui.focus) : null
+  const route = r ? r.up.slice().reverse() : []
+  const rd = route.slice(1).map((id, i) => linkPath(built.pos.get(route[i]), built.pos.get(id))).join('')
+  g.innerHTML = (rd ? `<path class="ov-route" d="${rd}"/>` : '') +
+    (d ? `<path class="ov-path" d="${d}"/><path class="ov-path ov-path--pulse" d="${d}"/>` : '')
+  for (const el of g.querySelectorAll('.ov-route, .ov-path:not(.ov-path--pulse)')) el.style.setProperty('--len', String(Math.ceil(el.getTotalLength())))
   for (const el of $('overviewSvg').querySelectorAll('.ov-dot.is-focus, .ov-dot.is-path')) el.classList.remove('is-focus', 'is-path')
   const onPath = new Set(chain)
   for (const id of onPath) {
@@ -203,14 +229,20 @@ function renderLegend() {
     row.n++
     rows.set(k, row)
   }
+  const by = ui.colorBy
   for (const p of ix.model.people) {
-    const by = ui.colorBy
+    // People, like every other count on the page; open seats have a row of their own only when colouring by employment.
+    if (p.status === 'open' && by !== 'employment') continue
     if (by === 'branch') {
       const b = ix.branchOf(p.id)
       add(person(b).name, `hsl(${hueOf(b)} 72% 62%)`)
     } else if (by === 'track') add(p.track, colorOf(p))
     else if (by === 'employment') add(p.status === 'open' ? 'open role' : p.employment, colorOf(p))
     else if (by === 'country') add(p.country || 'no country', colorOf(p))
+    else if (by === 'time') {
+      const part = dayPart(clockAt(p.tz))
+      add(DAY_WORDS[part] || 'no time zone', colorOf(p))
+    }
     else {
       const t = ix.teamById.get(p.team) || ix.teamById.get((ix.teamsOf.get(p.id) || [])[0]?.team)
       add(t ? t.name : 'no team', colorOf(p))
