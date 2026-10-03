@@ -56,6 +56,7 @@ Vendored from `packages/neorgon-ui/`, never edit in place: `js/neorgon-{header,f
 ## Gotchas
 
 - **`go(id)` is the only way to move.** It names the page frame (header, stage bar, panel, footer) `rama-frame-N` for one transition only, so chart.css can stack it above the cards in flight; the names are inline and removed after, so no site CSS touches the header kit. Every card is named `p-<id>`; ids are slugs, so the names are valid and unique per render.
+- **`plan()` in render-chart.js decides what the chart draws**: the chain folds to the top plus four levels, the row to twelve peers around the focus, each column to eight. The view-transition gate in nav.js counts cards from the same `plan()`, and past 150 cards a move cuts instead of morphing. Draw something new in the chart, count it in `plan()`.
 - **The panel renders before the chart.** Opening it narrows the stage, and `drawWires()` measures the final layout. Swap the order and every wire points at air.
 - **Nothing on `<body>` may carry `data-view`.** The click delegation asks for `button[data-view]`; a `data-view` on the body once swallowed every action button. The body's view flag is `data-mode`.
 - **The overview sizes marks in screen pixels.** `--u` on the SVG is drawing units per pixel, set when the overview is built (its key includes the SVG's size), and labels, the path and the halo multiply by it.
