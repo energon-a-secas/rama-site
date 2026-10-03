@@ -65,6 +65,8 @@
   <meta name="clerk-publishable-key" content="pk_live_Y2xlcmsubmVvcmdvbi5jb20k">
   <meta name="neo-auth-reason" content="Sign in and Rama opens the chart on your own card when your email is in the org.">
   <link rel="stylesheet" href="css/neorgon-auth.css">
+  <!-- Neorgon Keys Kit (vendored): the ? sheet lists every shortcut and can turn them off or remap them (WCAG 2.1.4). -->
+  <link rel="stylesheet" href="css/neorgon-keys.css">
   <meta name="neo-repo" content="https://github.com/energon-a-secas/rama-site">
   <meta name="neo-version" content="1.0.0">
   <meta name="neo-updated" content="2026-10-01">
@@ -113,7 +115,7 @@
             <span data-icon="file"></span><span class="nav-label">Org</span><span class="caret" aria-hidden="true">▾</span>
           </button>
           <div class="header-menu" id="orgMenu" role="menu" aria-label="Org document">
-            <button type="button" role="menuitem" data-action="edit"><span data-icon="pencil"></span>Edit the document<kbd>E</kbd></button>
+            <button type="button" role="menuitem" data-action="edit" aria-keyshortcuts="D"><span data-icon="pencil"></span>Edit the document<kbd>D</kbd></button>
             <button type="button" role="menuitem" data-action="import"><span data-icon="upload"></span>Import YAML, JSON or CSV</button>
             <button type="button" role="menuitem" data-action="example"><span data-icon="sparkles"></span>Load the example org</button>
             <button type="button" role="menuitem" data-action="blank"><span data-icon="plus"></span>Start a blank org</button>
@@ -142,7 +144,7 @@
             <button type="button" role="menuitem" data-handoff="reparto-file"><span data-icon="download"></span>Download the Reparto plan</button>
           </div>
         </div>
-        <button type="button" class="nav-link" data-action="help" aria-keyshortcuts="?" title="Help and keys (?)">
+        <button type="button" class="nav-link" data-action="help" title="Help">
           <span data-icon="help"></span><span class="nav-label">Help</span>
         </button>
       </div>
@@ -283,9 +285,10 @@
         <div><dt><kbd>/</kbd></dt><dd>Search</dd></div>
         <div><dt><kbd>O</kbd></dt><dd>Chart or Overview</dd></div>
         <div><dt><kbd>P</kbd></dt><dd>Show or hide the profile</dd></div>
-        <div><dt><kbd>E</kbd></dt><dd>Edit the document</dd></div>
+        <div><dt><kbd>D</kbd></dt><dd>Edit the document</dd></div>
         <div><dt><kbd>Esc</kbd></dt><dd>Close the profile</dd></div>
       </dl>
+      <p><kbd>?</kbd> opens the shortcut sheet, where every single-key shortcut can be turned off or moved to another key.</p>
       <p><strong>Your card.</strong> Rama starts on you when it knows who you are: a <code>?me=</code> in the link, the card you picked with <em>Me</em>, or the email on your Neorgon account. Otherwise it starts at the top.</p>
       <p><strong>The document.</strong> YAML or JSON, with <code>manager:</code> for reporting lines and any extra key you like shown under Details. The schema, with every key, is in <a href="llms.txt" target="_blank" rel="noopener">llms.txt</a>. CSV exports from an HR tool import too.</p>
       <p><strong>Other tools.</strong> <em>Hand off</em> opens the same people in Floorplan, as rooms, or in Reparto, as a team's sprint capacity, through a link. Nothing is uploaded.</p>

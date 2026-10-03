@@ -16,6 +16,7 @@ import { accountEmails } from './me.js'
 import { bindDialog, openDialog } from './dialogs.js'
 import { fillIcons } from './icons.js'
 import { NeoAuth } from './neorgon-auth.js'
+import { init as initKeys } from './neokeys/index.js'
 import { escHtml, debounce, copyText, showToast, $ } from './utils.js'
 import { plural } from './core.js'
 
@@ -53,6 +54,7 @@ export function bindEvents() {
   bindSpotlight()
   bindPan()
   bindDrop()
+  bindKeys()
   startAuth()
 }
 
@@ -148,27 +150,37 @@ export function setView(v) {
 
 const typing = (el) => el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))
 
+/**
+ * Keys that are not shortcuts in the WCAG 2.1.4 sense stay here: Ctrl or Cmd+K
+ * (a modifier chord) and Escape. Every single-key shortcut is registered with
+ * the Keys kit below, whose ? sheet lists them, turns them off, and remaps them.
+ */
 function onKey(e) {
   if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) { e.preventDefault(); return openSearch(document.activeElement) }
-  if (e.metaKey || e.ctrlKey || e.altKey || typing(e.target) || document.querySelector('dialog[open]')) return
+  if (e.key !== 'Escape' || e.metaKey || e.ctrlKey || e.altKey || typing(e.target) || document.querySelector('dialog[open]')) return
   if (document.querySelector('.header-menu.open')) return
-  const keys = {
-    ArrowUp: () => step('up'), ArrowDown: () => step('down'), ArrowLeft: () => step('left'), ArrowRight: () => step('right'),
-    Home: () => state.ix && go(state.ix.top, { focusDom: true }),
-    '/': () => openSearch(document.activeElement),
-    m: () => goMe(document.activeElement), M: () => goMe(document.activeElement),
-    o: () => setView(ui.view === 'chart' ? 'overview' : 'chart'), O: () => setView(ui.view === 'chart' ? 'overview' : 'chart'),
-    p: () => togglePanel(), P: () => togglePanel(),
-    e: () => openEditor({ opener: document.activeElement }), E: () => openEditor({ opener: document.activeElement }),
-    '?': () => openHelp(document.activeElement),
-    Escape: () => { if (ui.panel && !$('panel').hidden) togglePanel(false) },
-  }
-  const fn = keys[e.key]
-  if (!fn) return
-  // Arrows scroll a page; here they walk the org, except inside the panel's own scroll box.
-  if (e.key.startsWith('Arrow') && e.target.closest?.('.panel')) return
-  e.preventDefault()
-  fn()
+  if (ui.panel && !$('panel').hidden) { e.preventDefault(); togglePanel(false) }
+}
+
+/** The page's single-key shortcuts, as data for the Keys kit. A key declines (returns false) under a dialog or an open menu. */
+function bindKeys() {
+  const keys = initKeys({})
+  const busy = () => !!document.querySelector('dialog[open], .header-menu.open')
+  const when = (fn) => (e) => (busy() ? false : fn(e))
+  // An arrow inside the panel scrolls the panel, like any other scroll box.
+  const walk = (dir) => when((e) => (e.target.closest?.('.panel') ? false : step(dir)))
+  keys.register([
+    { key: 'ArrowUp', label: 'Their manager', group: 'Moving around', run: walk('up') },
+    { key: 'ArrowDown', label: 'Their first report', group: 'Moving around', run: walk('down') },
+    { key: 'ArrowLeft', label: 'The previous peer', group: 'Moving around', run: walk('left') },
+    { key: 'ArrowRight', label: 'The next peer', group: 'Moving around', run: walk('right') },
+    { key: 'Home', label: 'The top of the org', group: 'Moving around', run: when(() => state.ix && go(state.ix.top, { focusDom: true })) },
+    { key: 'm', label: 'Your own card', hint: 'Or pick it, the first time', group: 'Moving around', run: when(() => goMe(document.activeElement)) },
+    { key: '/', label: 'Search people', hint: 'Ctrl or Cmd+K works too', run: when(() => openSearch(document.activeElement)) },
+    { key: 'o', label: 'Chart or Overview', run: when(() => setView(ui.view === 'chart' ? 'overview' : 'chart')) },
+    { key: 'p', label: 'Show or hide the profile', run: when(() => togglePanel()) },
+    { key: 'd', label: 'Edit the document', run: when(() => openEditor({ opener: document.activeElement })) },
+  ])
 }
 
 /**

@@ -1,0 +1,235 @@
+/* ══════════════════════════════════════════════════════════════
+   NeoKeys — kit styles.
+
+   Travels with js/neokeys/ into packages/neorgon-ui/keys/. Every colour is a
+   --nk-* token that falls back to a header-kit token, so a seasonal theme or
+   a site skin re-skins the sheet without this file knowing about either.
+   ══════════════════════════════════════════════════════════════ */
+
+:root {
+  --nk-bg: var(--header-bg-end, #0d0d12);
+  --nk-border: var(--header-border-strong, rgba(255, 255, 255, .18));
+  --nk-hairline: var(--header-border, rgba(255, 255, 255, .08));
+  --nk-text: var(--text-secondary, #d8d8de);
+  --nk-dim: var(--text-muted, rgba(255, 255, 255, .55));
+  --nk-accent: var(--accent, var(--header-accent, #84cc16));
+  --nk-hover: var(--header-menu-hover, rgba(255, 255, 255, .08));
+}
+
+/* ── Shared dialog shell ───────────────────────────────────────
+   margin:auto is declared, not inherited: showModal() centres via the UA
+   sheet, and any site with a `* { margin: 0 }` reset beats it and pins the
+   dialog to the top-left. */
+.nk-sheet,
+.nk-fleet,
+.nk-store {
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--nk-border);
+  border-radius: 14px;
+  background: var(--nk-bg);
+  color: var(--nk-text);
+  overflow: hidden;
+}
+.nk-sheet[open],
+.nk-fleet[open],
+.nk-store[open] { display: flex; flex-direction: column; }
+.nk-sheet::backdrop,
+.nk-fleet::backdrop,
+.nk-store::backdrop { background: rgba(0, 0, 0, .66); backdrop-filter: blur(3px); }
+
+/* ── ? sheet ───────────────────────────────────────────────── */
+.nk-sheet { width: min(560px, calc(100vw - 32px)); max-height: min(80dvh, 680px); }
+
+.nk-sheet__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--nk-hairline);
+}
+.nk-sheet__title { flex: 1; margin: 0; font-size: 1rem; font-weight: 650; color: #fff; }
+.nk-sheet__close {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: none; width: 32px; height: 32px; padding: 0;
+  border: 1px solid var(--nk-border); border-radius: 8px;
+  background: transparent; color: var(--nk-dim); cursor: pointer;
+  transition: color .2s, background .2s;
+}
+.nk-sheet__close:hover { color: #fff; background: var(--nk-hover); }
+.nk-sheet__close svg { width: 17px; height: 17px; display: block; }
+
+.nk-sheet__body { padding: 14px 18px 18px; overflow-y: auto; }
+.nk-sheet__group {
+  margin: 16px 0 8px;
+  font-size: .7rem; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase;
+  color: var(--nk-dim);
+}
+.nk-sheet__group:first-of-type { margin-top: 4px; }
+.nk-sheet__flash {
+  margin: 0 0 10px; padding: 8px 10px;
+  border: 1px solid var(--nk-accent); border-radius: 8px;
+  background: color-mix(in srgb, var(--nk-accent) 12%, transparent);
+  font-size: .82rem; color: #fff;
+}
+
+.nk-rows { display: flex; flex-direction: column; gap: 2px; }
+.nk-rows--muted { opacity: .72; }
+
+.nk-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 7px 8px; border-radius: 8px;
+}
+.nk-row:hover { background: var(--nk-hover); }
+.nk-row__key { flex: none; display: flex; align-items: center; gap: 6px; min-width: 62px; }
+.nk-row__label { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.nk-row__name { font-size: .88rem; color: var(--nk-text); }
+.nk-row__hint { font-size: .74rem; color: var(--nk-dim); }
+.nk-row__moved {
+  font-size: .62rem; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--nk-accent);
+}
+.nk-row__actions { flex: none; display: flex; gap: 6px; }
+
+.nk-key {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 26px; height: 26px; padding: 0 7px;
+  border: 1px solid var(--nk-border);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .05);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .76rem; font-weight: 600; color: #fff;
+}
+
+/* Size modifiers live with .nk-key on purpose. They were briefly in the site
+   stylesheet, which loads first, so the base rule overrode them at equal
+   specificity and every keycap came out 26px. A keycap size is kit
+   vocabulary anyway. */
+.nk-key--lg { min-width: 34px; height: 34px; font-size: .95rem; }
+.nk-key--xl {
+  min-width: 46px; height: 46px; font-size: 1.3rem;
+  vertical-align: -6px; margin: 0 4px;
+}
+
+.nk-mini {
+  padding: 4px 9px;
+  border: 1px solid var(--nk-border); border-radius: 6px;
+  background: transparent; color: var(--nk-dim);
+  font: inherit; font-size: .74rem; cursor: pointer;
+  transition: color .2s, background .2s, border-color .2s;
+}
+.nk-mini:hover { color: #fff; background: var(--nk-hover); border-color: var(--nk-accent); }
+
+.nk-sheet__foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-top: 18px; padding-top: 14px;
+  border-top: 1px solid var(--nk-hairline);
+}
+.nk-switch { display: inline-flex; align-items: center; gap: 8px; font-size: .82rem; cursor: pointer; }
+.nk-switch input { accent-color: var(--nk-accent); width: 15px; height: 15px; }
+
+/* ── G fleet switcher ──────────────────────────────────────── */
+.nk-fleet { width: min(520px, calc(100vw - 32px)); max-height: min(70dvh, 560px); }
+.nk-fleet__input {
+  width: 100%; padding: 15px 18px;
+  border: 0; border-bottom: 1px solid var(--nk-hairline);
+  background: transparent; color: #fff;
+  font: inherit; font-size: .95rem;
+}
+.nk-fleet__input:focus { outline: none; }
+.nk-fleet__input::placeholder { color: var(--nk-dim); }
+.nk-fleet__list { flex: 1; overflow-y: auto; padding: 6px; }
+.nk-fleet__item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: 'name domain' 'desc desc';
+  gap: 2px 10px;
+  padding: 8px 10px; border-radius: 8px;
+  text-decoration: none; color: inherit;
+}
+.nk-fleet__item.is-active { background: var(--nk-hover); box-shadow: inset 2px 0 0 var(--nk-accent); }
+.nk-fleet__name { grid-area: name; font-size: .88rem; font-weight: 600; color: #fff; }
+.nk-fleet__domain {
+  grid-area: domain; justify-self: end;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .7rem; color: var(--nk-dim);
+}
+.nk-fleet__desc {
+  grid-area: desc; font-size: .74rem; color: var(--nk-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nk-fleet__empty { padding: 20px; margin: 0; text-align: center; color: var(--nk-dim); font-size: .84rem; }
+.nk-fleet__hint {
+  padding: 9px 18px; border-top: 1px solid var(--nk-hairline);
+  font-size: .72rem; color: var(--nk-dim);
+}
+
+/* ── M store ───────────────────────────────────────────────── */
+.nk-store { width: min(600px, calc(100vw - 32px)); max-height: min(80dvh, 640px); }
+.nk-store__head {
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px 18px; border-bottom: 1px solid var(--nk-hairline);
+}
+.nk-store__title { flex: 1; margin: 0; font-size: 1rem; font-weight: 650; color: #fff; }
+.nk-store__balance {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .76rem; color: var(--nk-accent);
+}
+.nk-store__grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 10px; padding: 18px; overflow-y: auto;
+}
+.nk-store__item {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 13px; border: 1px solid var(--nk-hairline); border-radius: 10px;
+  background: rgba(255, 255, 255, .02);
+}
+.nk-store__name { margin: 0; font-size: .86rem; font-weight: 620; color: #fff; }
+.nk-store__note { margin: 0; flex: 1; font-size: .74rem; color: var(--nk-dim); line-height: 1.5; }
+.nk-store__buy {
+  padding: 6px; border: 1px dashed var(--nk-border); border-radius: 6px;
+  background: transparent; color: var(--nk-dim);
+  font: inherit; font-size: .72rem; cursor: not-allowed;
+}
+.nk-store__honest {
+  margin: 0; padding: 13px 18px;
+  border-top: 1px solid var(--nk-hairline);
+  font-size: .76rem; color: var(--nk-dim);
+}
+
+/* ── Toast ─────────────────────────────────────────────────── */
+.nk-toast {
+  position: fixed; left: 50%; bottom: 26px; z-index: 400;
+  transform: translate(-50%, 12px);
+  padding: 10px 16px;
+  border: 1px solid var(--nk-border); border-radius: 10px;
+  background: var(--nk-bg); color: var(--nk-text);
+  font-size: .84rem; box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
+  opacity: 0; transition: opacity .25s ease, transform .25s ease;
+  pointer-events: none;
+}
+.nk-toast.is-in { opacity: 1; transform: translate(-50%, 0); }
+
+@media (max-width: 700px) {
+  .nk-sheet, .nk-fleet, .nk-store { width: calc(100vw - 20px); max-height: 86dvh; }
+  .nk-sheet__foot { flex-direction: column; align-items: flex-start; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nk-toast { transition: none; }
+}
+
+/* ── Chrome toggle ─────────────────────────────────────────── */
+/* The H toggle's whole visual effect. html[data-chrome] is kit-owned state:
+   chrome.js writes it at runtime and the pre-paint guard in <head> writes it
+   before first paint, so a returning hidden-chrome visitor never sees the bar
+   flash. Never hide via the kit's .header-hidden class; the app-mode scroll
+   handler owns it and puts the bar back on the next scroll up. A site with a
+   docked rail adds its own companion rule beside the rail's normal offset,
+   e.g. html[data-chrome="off"] .nav-rail { top: 0; }.
+   Header-only by default; the footer (licence and source links) goes too
+   only under the site-declared "full" scope (#41). */
+html[data-chrome="off"] .header-bar { display: none; }
+html[data-chrome="off"][data-chrome-scope="full"] .neo-footer { display: none; }
