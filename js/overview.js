@@ -8,7 +8,6 @@
 
 import { state, ui, person } from './state.js'
 import { isExternal, between } from './tree.js'
-import { TRACK_COLORS } from './roles.js'
 import { hash, safeColor, clockAt, dayPart } from './core.js'
 import { escHtml, $ } from './utils.js'
 import { hueOf, DAY_WORDS, DAY_COLORS } from './people.js'
@@ -18,8 +17,11 @@ const FIRST_RING = 78
 const RING = 74
 const TAU = Math.PI * 2
 const radius = (d) => (d ? FIRST_RING + (d - 1) * RING : 0)
-const EMPLOYMENT_COLORS = { employee: '#34d399', contractor: '#fbbf24', vendor: '#fb923c', intern: '#38bdf8' }
-const OTHER = '#64748b'
+// Every content colour is a token in style.css (or a hue on --mark-s and --mark-l), so a theme reaches the canvas.
+const EMPLOYMENT_COLORS = { employee: 'var(--c-employee)', contractor: 'var(--c-contractor)', vendor: 'var(--c-vendor)', intern: 'var(--c-intern)' }
+const TRACK_TOKENS = { exec: 'var(--c-exec)', management: 'var(--c-management)', ic: 'var(--c-ic)', support: 'var(--c-support)' }
+const OTHER = 'var(--c-other)'
+const mark = (hue) => `hsl(${hue} var(--mark-s) var(--mark-l))`
 
 let built = { key: '', pos: null, extent: 0 }
 let view = { x: 0, y: 0, k: 1 }
@@ -63,15 +65,15 @@ function sector(a0, a1, r0, r1) {
 
 function colorOf(p) {
   const by = ui.colorBy
-  if (by === 'track') return TRACK_COLORS[p.track] || OTHER
+  if (by === 'track') return TRACK_TOKENS[p.track] || OTHER
   if (by === 'employment') return p.status === 'open' ? OTHER : EMPLOYMENT_COLORS[p.employment] || OTHER
-  if (by === 'country') return p.country ? `hsl(${hash(p.country) % 360} 72% 62%)` : OTHER
-  if (by === 'time') return p.status === 'open' ? OTHER : DAY_COLORS[dayPart(clockAt(p.tz))] || OTHER
+  if (by === 'country') return p.country ? mark(hash(p.country) % 360) : OTHER
+  if (by === 'time') return p.status === 'open' ? OTHER : DAY_COLORS[dayPart(clockAt(p.tz), state.prefs)] || OTHER
   if (by === 'team') {
     const t = state.ix.teamById.get(p.team) || state.ix.teamById.get((state.ix.teamsOf.get(p.id) || [])[0]?.team)
-    return t ? safeColor(t.color, `hsl(${hash(t.id) % 360} 70% 62%)`) : OTHER
+    return t ? safeColor(t.color, mark(hash(t.id) % 360)) : OTHER
   }
-  return `hsl(${hueOf(p.id)} 72% 62%)`
+  return mark(hueOf(p.id))
 }
 
 const linkPath = (a, b) => {
@@ -88,7 +90,7 @@ export function renderOverview() {
   if (!ix) return
   // The size is not in the key: a resize or the panel opening only rescales the marks, it does not rebuild 10,000 elements.
   // Local time goes stale: the key turns over every quarter hour, so the next move after that recolours.
-  const key = `${ui.colorBy}|${state.me.id}|${ui.colorBy === 'time' ? Math.floor(Date.now() / 9e5) : ''}`
+  const key = `${ui.colorBy}|${state.me.id}|${ui.colorBy === 'time' ? `${Math.floor(Date.now() / 9e5)}|${state.prefs.h}|${state.prefs.d}` : ''}`
   if (built.key !== key || built.ix !== ix) build(ix, svg, key)
   else if (built.size !== sizeOf(svg)) rescale(svg)
   paintFocus()
@@ -152,11 +154,11 @@ function build(ix, svg, key) {
     const at = pos.get(id)
     const gap = Math.min(0.012, (at.a1 - at.a0) / 6)
     const hue = hueOf(id)
-    wedges.push(`<path class="ov-wedge" data-person="${escHtml(id)}" d="${sector(at.a0 + gap, at.a1 - gap, 34, outer)}" style="--c:hsl(${hue} 72% 60%)"/>`)
+    wedges.push(`<path class="ov-wedge" data-person="${escHtml(id)}" d="${sector(at.a0 + gap, at.a1 - gap, 34, outer)}" style="--c:${mark(hue)}"/>`)
     if (at.a1 - at.a0 > 0.22) {
       // People, as the legend and the stage bar count them: the division's head plus their org, never open seats.
       const n = ix.size.get(id) + (person(id).status === 'open' ? 0 : 1)
-      rim.push(`<text class="ov-rim" data-a="${at.a.toFixed(4)}" data-r="${outer}" style="--c:hsl(${hue} 80% 72%)">${escHtml(person(id).name)}<tspan class="ov-rim__n" dx="6">${n}</tspan></text>`)
+      rim.push(`<text class="ov-rim" data-a="${at.a.toFixed(4)}" data-r="${outer}" style="--c:hsl(${hue} var(--mark-s) var(--rim-l))">${escHtml(person(id).name)}<tspan class="ov-rim__n" dx="6">${n}</tspan></text>`)
     }
   }
   const links = []
@@ -235,12 +237,12 @@ function renderLegend() {
     if (p.status === 'open' && by !== 'employment') continue
     if (by === 'branch') {
       const b = ix.branchOf(p.id)
-      add(person(b).name, `hsl(${hueOf(b)} 72% 62%)`)
+      add(person(b).name, mark(hueOf(b)))
     } else if (by === 'track') add(p.track, colorOf(p))
     else if (by === 'employment') add(p.status === 'open' ? 'open role' : p.employment, colorOf(p))
     else if (by === 'country') add(p.country || 'no country', colorOf(p))
     else if (by === 'time') {
-      const part = dayPart(clockAt(p.tz))
+      const part = dayPart(clockAt(p.tz), state.prefs)
       add(DAY_WORDS[part] || 'no time zone', colorOf(p))
     }
     else {

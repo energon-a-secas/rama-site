@@ -82,7 +82,7 @@ export function renderChart() {
     <div class="lead">${card(v.parent, 'lead', v)}</div>
     ${v.row.length
       ? `<ol class="row" aria-label="${escHtml(lead.virtual ? 'The top of the org' : `Reports to ${lead.name}`)}">${rowItems.join('')}</ol>`
-      : `<p class="row-empty">${escHtml(lead.name)} has no reports in this document.</p>`}
+      : `<p class="row-empty">${escHtml(lead.name)} has no reports yet. Give someone <code>manager: ${escHtml(lead.id)}</code> in the document (<kbd>D</kbd>) to put them here.</p>`}
     <svg class="wires" id="wires" aria-hidden="true" focusable="false"></svg>`
   drawWires(el, v)
   return v

@@ -2,6 +2,7 @@
 // draw() repaints whatever depends on the focus; drawAll() also repaints what
 // depends on the document (title, numbers, the notice). Neither saves.
 
+import { teamLead } from './workspace.js'
 import { state, ui, person } from './state.js'
 import { renderChart } from './render-chart.js'
 import { renderOverview } from './overview.js'
@@ -121,6 +122,9 @@ export function renderHeader() {
   $('handScope').textContent = scope.virtual ? 'the whole org, as rooms' : `everyone under ${scope.name}, as rooms`
   const lead = ix.kids(f.id).length ? f : person(ix.parentOf(f.id))
   $('handTeam').textContent = lead && !lead.virtual ? `plan ${lead.name}'s team` : 'plan the top-level team'
+  const wsLead = person(teamLead())
+  $('handWs').textContent = wsLead ? `save ${wsLead.name}'s team, after a review` : 'stand on a manager to save their team'
+  document.querySelector('[data-handoff="ws-team"]').disabled = !wsLead
 }
 
 export function announce(text) {

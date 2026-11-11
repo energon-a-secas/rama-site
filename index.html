@@ -10,8 +10,11 @@
        img-src and connect-src carry https: on purpose: a document's `photo:` can live on any https
        host, and ?src= fetches a document from any https host that allows CORS. Nothing in a
        document can run script, so the broad source only ever loads an image or a text file.
+       frame-src: Turnstile, and the Neorgon Workspace's read-only frame (neorgon.com/workspace/vault.html;
+       http://localhost:* is neorgon-site in development, on 8800 or the port neo-ws:dev-origin names.
+       The client frames localhost only when Rama itself is served from localhost).
        frame-ancestors, report-uri and sandbox are ignored in a meta tag, so they are left out. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'sha256-na6phygP/tfoCIp4oBeQgGJJpQsZob/udrLum+20QTI=' https://cdn.jsdelivr.net/npm/js-yaml@4.3.2/dist/js-yaml.min.js https://gc.zgo.at https://static.cloudflareinsights.com https://clerk.neorgon.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.neorgon.org/v1.0.0/; img-src 'self' data: https://img.clerk.com https://neorgon.goatcounter.com https:; font-src 'self'; connect-src 'self' https://clerk.neorgon.com https://neorgon.goatcounter.com https://cloudflareinsights.com https:; manifest-src 'self'; frame-src https://challenges.cloudflare.com; worker-src blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'sha256-na6phygP/tfoCIp4oBeQgGJJpQsZob/udrLum+20QTI=' https://cdn.jsdelivr.net/npm/js-yaml@4.3.2/dist/js-yaml.min.js https://gc.zgo.at https://static.cloudflareinsights.com https://clerk.neorgon.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.neorgon.org/v1.0.0/; img-src 'self' data: https://img.clerk.com https://neorgon.goatcounter.com https:; font-src 'self'; connect-src 'self' https://clerk.neorgon.com https://neorgon.goatcounter.com https://cloudflareinsights.com https:; manifest-src 'self'; frame-src https://challenges.cloudflare.com https://neorgon.com http://localhost:*; worker-src blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="referrer" content="no-referrer">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -67,6 +70,8 @@
   <link rel="stylesheet" href="css/neorgon-auth.css">
   <!-- Neorgon Keys Kit (vendored): the ? sheet lists every shortcut and can turn them off or remap them (WCAG 2.1.4). -->
   <link rel="stylesheet" href="css/neorgon-keys.css">
+  <!-- Neorgon Workspace Kit (vendored): the Settings sheet (gear and the , key), the team round trips. packages/neorgon-ui/workspace/README.md -->
+  <link rel="stylesheet" href="css/neorgon-workspace.css">
   <meta name="neo-repo" content="https://github.com/energon-a-secas/rama-site">
   <meta name="neo-version" content="1.0.0">
   <meta name="neo-updated" content="2026-10-01">
@@ -129,9 +134,9 @@
             <button type="button" role="menuitem" data-export="prompt"><span data-icon="copy"></span>Copy as a prompt for Claude</button>
           </div>
         </div>
-        <!-- Hand off is desktop-only in the header: on a phone the profile panel carries the same
-             handoffs per person, and a dropdown in the kit's overflow panel would be clipped. -->
-        <div class="menu-wrap" id="handWrap">
+        <!-- Hand off stays in the header on phones too (data-keep-mobile, icon only there): a
+             dropdown inside the kit's overflow panel would be clipped by its scroll box. -->
+        <div class="menu-wrap" id="handWrap" data-keep-mobile>
           <button type="button" class="nav-link" id="handBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="handMenu" title="Open this org in another Neorgon tool">
             <span data-icon="send"></span><span class="nav-label">Hand off</span><span class="caret" aria-hidden="true">▾</span>
           </button>
@@ -142,10 +147,19 @@
             <div class="menu-sep" role="separator"></div>
             <button type="button" role="menuitem" data-handoff="floorplan-file"><span data-icon="download"></span>Download the Floorplan YAML</button>
             <button type="button" role="menuitem" data-handoff="reparto-file"><span data-icon="download"></span>Download the Reparto plan</button>
+            <div class="menu-sep" role="separator"></div>
+            <button type="button" role="menuitem" data-handoff="ws-team"><span data-icon="users"></span><span>Your workspace <small id="handWs">save this team, after a review</small></span></button>
+            <button type="button" role="menuitem" data-handoff="ws-org"><span data-icon="users"></span><span>Your workspace <small>save the whole org, after a review</small></span></button>
           </div>
         </div>
         <button type="button" class="nav-link" data-action="help" title="Help">
           <span data-icon="help"></span><span class="nav-label">Help</span>
+        </button>
+        <!-- Settings (the Workspace sheet). Rama's own button rather than the kit's mountGear(): in the
+             markup, the Header Kit folds it into the ⋯ panel on a phone, with its label; the , key is
+             registered with the Keys kit in events.js. -->
+        <button type="button" class="nav-link" id="settingsBtn" data-action="settings" aria-haspopup="dialog" aria-keyshortcuts="," title="Settings (,)">
+          <span data-icon="settings"></span><span class="nav-label">Settings</span>
         </button>
       </div>
 
@@ -283,22 +297,15 @@
     </div>
     <div class="dialog__body help">
       <p>Rama draws an org from one document: people, who each reports to, and anything else you want on a profile. Click anyone to stand on their card. Their manager sits above them, their peers beside them, and everyone's reports underneath.</p>
-      <dl class="keys">
-        <div><dt><kbd>↑</kbd></dt><dd>Their manager</dd></div>
-        <div><dt><kbd>↓</kbd></dt><dd>Their first report</dd></div>
-        <div><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>The previous or next peer</dd></div>
-        <div><dt><kbd>Home</kbd></dt><dd>The top of the org</dd></div>
-        <div><dt><kbd>M</kbd></dt><dd>Your own card</dd></div>
-        <div><dt><kbd>/</kbd></dt><dd>Search</dd></div>
-        <div><dt><kbd>O</kbd></dt><dd>Chart or Overview</dd></div>
-        <div><dt><kbd>P</kbd></dt><dd>Show or hide the profile</dd></div>
-        <div><dt><kbd>D</kbd></dt><dd>Edit the document</dd></div>
-        <div><dt><kbd>Esc</kbd></dt><dd>Close the profile</dd></div>
-      </dl>
-      <p><kbd>?</kbd> opens the shortcut sheet, where every single-key shortcut can be turned off or moved to another key.</p>
+      <p>Click a card or use the arrow keys: up to their manager, down to their first report, left and right across peers. <kbd>?</kbd> lists every shortcut, and each one can be turned off or moved to another key there.</p>
+      <p class="help__actions">
+        <button type="button" class="btn btn--secondary" data-action="keys"><span data-icon="keyboard"></span><span>Keyboard shortcuts</span></button>
+        <button type="button" class="btn btn--secondary" data-action="settings"><span data-icon="settings"></span><span>Settings</span></button>
+      </p>
       <p><strong>Your card.</strong> Rama starts on you when it knows who you are: a <code>?me=</code> in the link, the card you picked with <em>Me</em>, or the email on your Neorgon account. Otherwise it starts at the top.</p>
       <p><strong>The document.</strong> YAML or JSON, with <code>manager:</code> for reporting lines and any extra key you like shown under Details. The schema, with every key, is in <a href="llms.txt" target="_blank" rel="noopener">llms.txt</a>. CSV exports from an HR tool import too.</p>
       <p><strong>Other tools.</strong> <em>Hand off</em> opens the same people in Floorplan, as rooms, or in Reparto, as a team's sprint capacity, through a link. Nothing is uploaded.</p>
+      <p><strong>Settings and your workspace.</strong> The gear (or <kbd>,</kbd>) holds your time zone, working hours and days and time format, shared by every Neorgon planning tool. Local times and the day colours follow them. <em>Hand off &gt; Your workspace</em> saves a manager's team or the whole org to your Neorgon Workspace, after a review there.</p>
     </div>
   </dialog>
 

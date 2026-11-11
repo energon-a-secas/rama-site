@@ -6,9 +6,12 @@ import { ui, loadPrefs } from './state.js'
 import { openFirstDocument, firstFocus } from './boot.js'
 import { drawAll } from './render.js'
 import { center } from './nav.js'
-import { bindEvents } from './events.js'
+import { bindEvents, workspaceChanged } from './events.js'
+import { startWorkspace, mountWorkspace } from './workspace.js'
 
 async function init() {
+  // Before boot.js reads location.hash: the Workspace kit takes a pick's answer there first.
+  startWorkspace(workspaceChanged)
   const fresh = loadPrefs()
   // A phone opens on the chart; the profile is one tap on the focused card away.
   if (fresh && matchMedia('(max-width: 700px)').matches) ui.panel = false
@@ -17,6 +20,7 @@ async function init() {
   drawAll()
   center('instant')
   bindEvents()
+  mountWorkspace()
   document.body.classList.add('is-ready')
 }
 

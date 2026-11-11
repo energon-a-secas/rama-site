@@ -20,6 +20,7 @@ import { init as initKeys } from './neokeys/index.js'
 import { escHtml, debounce, copyText, showToast, $ } from './utils.js'
 import { plural } from './core.js'
 import { localTime } from './panel.js'
+import { saveToWorkspace, openSettings, markSettingsKey } from './workspace.js'
 
 let fileTarget = 'app'
 
@@ -93,7 +94,7 @@ function onClick(e) {
   const exp = t.closest('[data-export]')
   if (exp) return exportAs(exp.dataset.export)
   const hand = t.closest('[data-handoff]')
-  if (hand) return handoff(hand.dataset.handoff)
+  if (hand) return hand.dataset.handoff.startsWith('ws-') ? saveToWorkspace(hand.dataset.handoff.slice(3)) : handoff(hand.dataset.handoff)
   const copy = t.closest('[data-copy]')
   if (copy) return copyText(copy.dataset.copy).then((ok) => showToast(ok ? 'Copied' : 'Could not copy'))
   const act = t.closest('[data-action]')
@@ -107,6 +108,8 @@ function action(name, el) {
     case 'me': return goMe(el)
     case 'top': return state.ix && go(state.ix.top, { focusDom: true })
     case 'help': return openHelp(el)
+    case 'keys': $('helpDialog').close(); return window.NeoKeys?.sheet?.open?.()
+    case 'settings': $('helpDialog').close(); return openSettings(el)
     case 'edit': return openEditor({ opener: el })
     case 'edit-person': return openEditor({ opener: el, personId: focus })
     case 'apply': return applyEditor()
@@ -197,7 +200,23 @@ function bindKeys() {
     { key: 'o', label: 'Chart or Overview', run: when(() => setView(ui.view === 'chart' ? 'overview' : 'chart')) },
     { key: 'p', label: 'Show or hide the profile', run: when(() => togglePanel()) },
     { key: 'd', label: 'Edit the document', run: when(() => openEditor({ opener: document.activeElement })) },
+    // The fleet's Settings key, registered here so the ? sheet lists it and can move it (the Workspace kit defers to it).
+    { key: ',', label: 'Settings', hint: 'Your zone, hours and team', run: when(() => openSettings(document.activeElement)) },
   ])
+  // The Settings button names the key that opens the sheet now (moved, or off, in the ? sheet).
+  const markKey = () => {
+    const entry = keys.list().find((x) => x.label === 'Settings')
+    markSettingsKey(!entry || keys.isDisabled() ? '' : keys.activeKey(entry))
+  }
+  keys.onChange(markKey)
+  markKey()
+}
+
+/** The Workspace changed: new settings redraw every clock and day part; a new "me" redraws the card marks. */
+export function workspaceChanged(kind) {
+  if (!state.ix || !document.body.classList.contains('is-ready')) return
+  if (kind === 'prefs') drawAll()
+  else draw()
 }
 
 /**

@@ -27,6 +27,24 @@
   --control-height: 44px;
   --control-height-sm: 36px;
   --on-accent: #052e1f; /* Emerald-400 is light: dark text on it measures 7.7:1. */
+  /* Content colours. The chart and the overview read only these (and --accent), so a theme or a
+     skin re-tints the canvas in one place. One accent family: work and employees are the accent. */
+  --c-work: var(--accent);
+  --c-edge: #fbbf24;
+  --c-night: #818cf8;
+  --c-weekend: #f472b6;
+  --c-other: #64748b;
+  --c-exec: #f472b6;
+  --c-management: #a78bfa;
+  --c-ic: #38bdf8;
+  --c-support: #fbbf24;
+  --c-employee: var(--accent);
+  --c-contractor: #fbbf24;
+  --c-vendor: #fb923c;
+  --c-intern: #38bdf8;
+  --mark-s: 72%;  /* saturation and lightness of the hue-coded marks (division, country, team) */
+  --mark-l: 62%;
+  --rim-l: 72%;   /* the division names around the overview, a step lighter */
   --shadow-card: 0 12px 28px rgba(15, 23, 42, 0.5);
   --shadow-modal: 0 24px 48px rgba(2, 6, 23, 0.58);
   --z-sticky-header: 200;

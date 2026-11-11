@@ -1,0 +1,242 @@
+// Browser check for the Neorgon Workspace in Rama. Not a node --test file: it
+// needs Playwright's browsers, borrowed from the monorepo root.
+//
+//   node test/workspace-browser.mjs                 # chromium,firefox,webkit
+//   WS_ENGINES=chromium node test/workspace-browser.mjs
+//
+// It starts two servers of its own: Rama on RAMA_PORT (9340) and neorgon-site,
+// the frame and the Workspace page, on FRAME_PORT (9341). Rama's CSP allows
+// frames from neorgon.com and any localhost port (the plan's development rule).
+// localStorage['neo-ws:dev-origin'] points the client at that server.
+// Chromium's storage partitioning and Firefox's cookie behaviour are put back
+// to the browsers' defaults (Playwright changes both), as the kit's check does.
+import { createRequire } from 'node:module'
+import { spawn } from 'node:child_process'
+import { connect } from 'node:net'
+import { join } from 'node:path'
+import { ROOT, MONOREPO } from './helpers.mjs'
+
+const require = createRequire(join(MONOREPO, 'package.json'))
+const { chromium, firefox, webkit } = require('playwright')
+const W = await import('../js/neorgon-workspace-core.js')
+
+const RAMA_PORT = Number(process.env.RAMA_PORT || 9340)
+const FRAME_PORT = Number(process.env.FRAME_PORT || 9341)
+const RAMA = `http://localhost:${RAMA_PORT}`
+const FRAME = `http://localhost:${FRAME_PORT}`
+const engines = (process.env.WS_ENGINES || 'chromium,firefox,webkit').split(',')
+const LOCAL = { protocol: 'http:', hostname: 'localhost' }
+
+// A server already on either port would be tested instead of this checkout: refuse to run.
+const busy = (port) => new Promise((resolve) => {
+  const sock = connect(port, '127.0.0.1')
+  sock.on('connect', () => { sock.destroy(); resolve(true) })
+  sock.on('error', () => resolve(false))
+})
+for (const port of [RAMA_PORT, FRAME_PORT]) {
+  if (await busy(port)) { console.error(`Port ${port} is in use; stop that server or set RAMA_PORT and FRAME_PORT.`); process.exit(2) }
+}
+
+const servers = [
+  spawn('python3', [join(MONOREPO, 'scripts/serve.py'), String(RAMA_PORT), ROOT], { stdio: 'ignore' }),
+  spawn('python3', [join(MONOREPO, 'scripts/serve.py'), String(FRAME_PORT), join(MONOREPO, 'projects/neorgon-site')], { stdio: 'ignore' }),
+]
+const stop = () => servers.forEach((s) => s.kill())
+process.on('exit', stop)
+
+const results = []
+const check = (eng, name, ok, extra = '') => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'} ${eng}: ${name}${extra ? ` (${extra})` : ''}`) }
+
+async function launch(eng) {
+  if (eng === 'chromium') {
+    const probe = await chromium.launch({ args: ['--enable-automation'] })
+    const cdp = await probe.newBrowserCDPSession()
+    const cmd = (await cdp.send('Browser.getBrowserCommandLine')).arguments.join(' ')
+    await probe.close()
+    const arg = (cmd.match(/--disable-features=\S+/) || [])[0]
+    if (!arg) return chromium.launch()
+    return chromium.launch({ ignoreDefaultArgs: [arg], args: [arg.replace(/(,)?ThirdPartyStoragePartitioning/, '').replace('=,', '=')] })
+  }
+  if (eng === 'firefox') return firefox.launch({ firefoxUserPrefs: { 'network.cookie.cookieBehavior': 5 } })
+  return webkit.launch()
+}
+
+async function go(page, url) {
+  for (let i = 0; ; i++) {
+    try { return await page.goto(url) } catch (err) {
+      if (i >= 4 || !/connect|REFUSED|NS_ERROR_NET|reset|Could not connect/i.test(String(err))) throw err
+      await page.waitForTimeout(400)
+    }
+  }
+}
+
+let v = 0
+async function context(browser, { width = 1440, height = 900 } = {}) {
+  const ctx = await browser.newContext({ viewport: { width, height } })
+  await ctx.addInitScript((frame) => {
+    try { if (location.port !== new URL(frame).port) localStorage.setItem('neo-ws:dev-origin', frame) } catch { /* no storage */ }
+  }, FRAME)
+  // Rama's CSP names localhost:8800 for the frame in development; add this test's port.
+  return ctx
+}
+
+async function seed(ctx, ws) {
+  const stamp = W.makeStamp()
+  const p = await ctx.newPage()
+  await go(p, `${FRAME}/workspace/vault.html?v=${++v}`)
+  await p.evaluate(([rec, cookie]) => { localStorage.setItem('neo-ws:workspace', JSON.stringify(rec)); document.cookie = cookie },
+    [{ __v: W.STORE_VERSION, data: { stamp, ws: W.normalizeWorkspace(ws).ws } }, W.stampCookie(stamp, LOCAL)])
+  await p.close()
+}
+
+async function openRama(ctx, query = '') {
+  const page = await ctx.newPage()
+  const errors = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  page.on('console', (m) => { if (m.type() === 'error' && !/favicon|goatcounter|clerk|cloudflare|ERR_|Failed to load resource|Content Security Policy.*style/i.test(m.text())) errors.push(m.text()) })
+  await go(page, `${RAMA}/?v=${++v}${query}`)
+  await page.waitForFunction(() => document.body.classList.contains('is-ready'), null, { timeout: 15000 })
+  return { page, errors }
+}
+
+const panelTime = (page) => page.evaluate(() => document.querySelector('[data-localtime]')?.closest('.panel__row, li, div')?.textContent.replace(/\s+/g, ' ').trim() || '')
+
+for (const eng of engines) {
+  const browser = await launch(eng)
+  try {
+    // 1. The gear, the , key, Rama's section, Escape and focus return.
+    {
+      const ctx = await context(browser)
+      const { page, errors } = await openRama(ctx)
+      const gear = page.locator('.header-actions #settingsBtn')
+      check(eng, 'Settings sits in the header actions and names its key', await gear.count() === 1 && (await gear.getAttribute('aria-keyshortcuts')) === ',' && !(await page.locator('.neo-ws-gear').count()))
+      await page.locator('#stage').focus()
+      await page.keyboard.press(',')
+      const sheet = page.locator('dialog.neo-ws-sheet')
+      await sheet.waitFor({ state: 'visible', timeout: 4000 }).catch(() => {})
+      check(eng, ', opens the Settings sheet', await sheet.evaluate((d) => d.open).catch(() => false))
+      const section = await sheet.textContent().catch(() => '')
+      check(eng, 'the sheet carries Rama\'s section and its save action', /What "Save this team" sends/.test(section) && /Save this team to your workspace/.test(section))
+      check(eng, 'the saved people are drawn with the kit\'s faces', await page.locator('.ws-face').count() > 0)
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(200)
+      check(eng, 'Escape closes it and focus goes back', !(await sheet.evaluate((d) => d.open).catch(() => true)) && await page.evaluate(() => document.activeElement && document.activeElement !== document.body))
+      // The ? sheet lists , as Settings, so it can be moved or turned off there.
+      const listed = await page.evaluate(() => window.NeoKeys.list().some((e) => e.key === ',' && e.label === 'Settings'))
+      check(eng, 'the Keys kit lists , as Settings', listed)
+      check(eng, 'no page errors', errors.length === 0, errors.slice(0, 3).join(' | '))
+      await ctx.close()
+    }
+
+    // 2. Settings reach the clocks: the zone for "ahead of you", the format, the working day.
+    {
+      const ctx = await context(browser)
+      await ctx.addCookies([{ name: 'neo_me', value: W.meCookie({ tz: 'Europe/Lisbon', c: 'h23', h: [0, 1440], d: '1234567' }, LOCAL).split(';')[0].split('=').slice(1).join('='), url: RAMA }])
+      const { page } = await openRama(ctx, '&at=noor-haddad')
+      const line = await panelTime(page)
+      check(eng, 'the time is measured against the zone in Settings (Noor is in Lisbon)', /same time as you/.test(line), line)
+      check(eng, 'the 24-hour format applies', !/\b(AM|PM)\b|[ap]\.\s?m\./i.test(line), line)
+      check(eng, 'a working day of every hour makes it working hours', /Working hours/i.test(line), line)
+      // Changing the setting redraws at once.
+      await page.evaluate(async () => {
+        const mod = await import('./js/neorgon-workspace.js')
+        mod.NeoWorkspace.current.setPrefs({ c: 'h12', tz: 'Asia/Tokyo' })
+      })
+      await page.waitForTimeout(300)
+      const after = await panelTime(page)
+      check(eng, 'a new setting redraws the panel', /behind you/.test(after) && /\b(AM|PM)\b|[ap]\.\s?m\./i.test(after), after)
+      await ctx.close()
+    }
+
+    // 3. The workspace's me.person is a fourth way to find your card.
+    {
+      const ctx = await context(browser)
+      await seed(ctx, { me: { person: 'rama-hugo-brandt' }, people: [{ id: 'rama-hugo-brandt', name: 'Hugo Brandt' }] })
+      const { page } = await openRama(ctx)
+      await page.waitForFunction(() => /Hugo Brandt/.test(document.getElementById('meBtn').title), null, { timeout: 7000 }).catch(() => {})
+      const title = await page.locator('#meBtn').getAttribute('title')
+      check(eng, 'the workspace names the visitor\'s card', /Hugo Brandt/.test(title), `${title} ${JSON.stringify(await page.evaluate(async () => { const t = (await import('./js/neorgon-workspace.js')).NeoWorkspace.current.team(); return { s: t.status, f: t.frame, me: t.ws?.me, i: t.issues } }))}`)
+      await ctx.close()
+    }
+
+    // 4. Save the whole org: the review on the Workspace page, then back; a second save adds nobody.
+    {
+      const ctx = await context(browser)
+      const { page } = await openRama(ctx)
+      const seen = []
+      page.on('request', (r) => seen.push(r.url()))
+      await page.locator('#handBtn').click()
+      await page.locator('[data-handoff="ws-org"]').click()
+      await page.waitForURL(/\/workspace\/#save=/, { timeout: 8000 }).catch(() => {})
+      const head = await page.locator('.ws-flow-card h2').textContent({ timeout: 8000 }).catch(() => '')
+      check(eng, 'the Workspace page reviews Rama\'s people', /Rama wants to add \d+ people/.test(head), head)
+      await page.locator('[data-act="flow-save"]').click()
+      await page.locator('a.ws-away', { hasText: 'Back to Rama' }).click()
+      await page.waitForURL(`${RAMA}/**`, { timeout: 8000 })
+      await page.waitForFunction(() => document.body.classList.contains('is-ready'), null, { timeout: 15000 })
+      await page.locator('#handBtn').click()
+      await page.locator('[data-handoff="ws-org"]').click()
+      await page.waitForURL(/\/workspace\/#save=/, { timeout: 8000 }).catch(() => {})
+      const again = await page.locator('.ws-flow-card .ws-help').first().textContent({ timeout: 8000 }).catch(() => '')
+      check(eng, 'saving the same org again changes nothing', /Saving would change nothing/.test(again), again)
+      check(eng, 'no request ever carried a team in its URL', !seen.some((u) => /neo-ws=/.test(u)))
+      await ctx.close()
+    }
+
+    // 4b. A pick's round trip: the answer is taken, stripped from the address bar, and no request carries it.
+    {
+      const ctx = await context(browser)
+      await seed(ctx, { me: { person: 'rama-hugo-brandt' }, people: [{ id: 'rama-hugo-brandt', name: 'Hugo Brandt' }] })
+      const { page } = await openRama(ctx)
+      const seen = []
+      page.on('request', (r) => seen.push(r.url()))
+      // load() navigates away, so the evaluate may lose its context: that is the point, not a failure.
+      await page.evaluate(async () => { (await import('./js/neorgon-workspace.js')).NeoWorkspace.current.load() }).catch(() => {})
+      await page.waitForURL(/\/workspace\/#pick/, { timeout: 8000 })
+      await page.locator('[data-act="flow-share"]').click({ timeout: 8000 })
+      await page.waitForURL(`${RAMA}/**`, { timeout: 8000 })
+      await page.waitForFunction(() => document.body.classList.contains('is-ready'), null, { timeout: 15000 })
+      check(eng, 'the answer leaves the address bar', !/neo-ws=/.test(page.url()), page.url().slice(0, 80))
+      check(eng, 'the picked team names the card', /Hugo Brandt/.test(await page.locator('#meBtn').getAttribute('title')))
+      check(eng, 'no request carried the answer', !seen.slice(1).some((u) => /neo-ws=/.test(u)), seen.filter((u) => /neo-ws=/.test(u)).length + ' with it')
+      await ctx.close()
+    }
+
+    // 5. On a phone: Hand off is in the header and its menu fits; nothing reads under 12px.
+    {
+      const ctx = await context(browser, { width: 390, height: 844 })
+      const { page } = await openRama(ctx)
+      check(eng, 'Hand off is reachable on a phone', await page.locator('#handBtn').isVisible())
+      await page.locator('.header-overflow > button').first().click()
+      await page.locator('#settingsBtn').click()
+      check(eng, 'Settings opens from the phone menu', await page.locator('dialog.neo-ws-sheet').evaluate((d) => d.open).catch(() => false))
+      await page.keyboard.press('Escape')
+      await page.locator('#handBtn').click()
+      const box = await page.locator('#handMenu').boundingBox()
+      check(eng, 'its menu fits the screen', !!box && box.x >= 0 && box.x + box.width <= 390, JSON.stringify(box))
+      await page.keyboard.press('Escape')
+      const small = await page.evaluate(() => {
+        const out = []
+        for (const el of document.querySelectorAll('main *, .neo-ws-sheet *')) {
+          if (el.closest('svg, .avatar, [aria-hidden="true"], .caret')) continue
+          const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())
+          if (!own || !el.getClientRects().length) continue
+          const px = parseFloat(getComputedStyle(el).fontSize)
+          if (px < 12) out.push(`${el.className || el.tagName} ${px}`)
+        }
+        return out
+      })
+      check(eng, 'no reading text under 12px', small.length === 0, small.slice(0, 5).join(', '))
+      await ctx.close()
+    }
+  } catch (err) {
+    check(eng, 'ran to the end', false, String(err).slice(0, 300))
+  } finally {
+    await browser.close()
+  }
+}
+
+stop()
+const failed = results.filter((ok) => !ok).length
+console.log(`\n${results.length - failed} of ${results.length} passed`)
+process.exit(failed ? 1 : 0)

@@ -153,15 +153,52 @@ export function clockAt(tz, now = new Date()) {
   }
 }
 
+/** Rama's working day when the visitor has set none: 09:00 to 18:00, Monday to Friday. */
+export const WORK_DAY = Object.freeze({ h: [540, 1080], d: '12345' })
+
 /**
- * Where someone's day is: night (22 to 7, any day), weekend (the waking hours
- * of a Saturday or Sunday), work (9 to 18 on a weekday), edge (the weekday's
- * 7 to 9 and 18 to 22), or none without a clock. Night comes first, so a
+ * Where someone's day is, by the visitor's working day (`work`: { h: [start,
+ * end] in minutes, d: ISO weekday digits }, the Workspace settings): work
+ * (inside those hours on a work day), night (22 to 7, widened to hold the
+ * working hours), weekend (a day off, awake), edge (a work day's hours either
+ * side of work), or none without a clock. Night comes before a day off, so a
  * weekend view still shows who is asleep.
  */
-export function dayPart(clock) {
+export function dayPart(clock, work = WORK_DAY) {
   if (!clock) return 'none'
-  if (clock.hour < 7 || clock.hour >= 22) return 'night'
-  if (clock.day === 0 || clock.day === 6) return 'weekend'
-  return clock.hour >= 9 && clock.hour < 18 ? 'work' : 'edge'
+  const h = Array.isArray(work?.h) && work.h.length === 2 ? work.h : WORK_DAY.h
+  const d = typeof work?.d === 'string' && work.d ? work.d : WORK_DAY.d
+  const min = clock.hour * 60
+  const workday = d.includes(String(clock.day || 7))
+  if (workday && min >= h[0] && min < h[1]) return 'work'
+  if (min < Math.min(420, h[0]) || min >= Math.max(1320, h[1])) return 'night'
+  return workday ? 'edge' : 'weekend'
 }
+
+/** Minutes east of UTC for an IANA zone or an offset (+5:30), or null when neither reads. */
+export function offsetMinutes(tz, now = new Date()) {
+  const m = OFFSET.exec(tz || '')
+  if (m) return (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3] || 0))
+  if (!tz) return null
+  try {
+    const name = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'longOffset' }).formatToParts(now).find((x) => x.type === 'timeZoneName')?.value || 'GMT'
+    const g = /GMT([+-])(\d{2}):?(\d{2})?/.exec(name)
+    return g ? (g[1] === '-' ? -1 : 1) * (Number(g[2]) * 60 + Number(g[3] || 0)) : 0
+  } catch {
+    return null
+  }
+}
+
+/** "3 hours ahead of you", "same time as you", or '' when a zone does not read. mine is the visitor's zone. */
+export function relativeTo(theirs, mine, now = new Date()) {
+  const a = offsetMinutes(theirs, now)
+  const b = offsetMinutes(mine, now)
+  if (a == null || b == null) return ''
+  const diff = (a - b) / 60
+  if (diff === 0) return 'same time as you'
+  const n = Math.abs(diff)
+  return `${n % 1 ? n.toFixed(1).replace(/\.0$/, '') : n} ${n === 1 ? 'hour' : 'hours'} ${diff > 0 ? 'ahead of' : 'behind'} you`
+}
+
+/** Intl's hourCycle for the Workspace time format: 'h12' or 'h23', or undefined for the locale's own. */
+export const hourCycleOf = (c) => (c === 'h12' || c === 'h23' ? c : undefined)

@@ -102,6 +102,8 @@
 #meBtn.is-set .ico { color: var(--accent-bright); }
 @media (max-width: 700px) {
   .menu-wrap .nav-label, #searchBtn .nav-label, #meBtn .nav-label, .nav-kbd { display: none; }
+  /* Folded into the Header Kit's ⋯ panel, a control says what it is. */
+  .header-overflow #searchBtn .nav-label { display: inline; }
 }
 
 /* ── The profile panel ───────────────────────────────────────── */
@@ -171,7 +173,7 @@
   font: inherit;
   font-size: 0.8rem;
 }
-.chip--tag { border-color: rgb(52 211 153 / 25%); background: rgb(52 211 153 / 8%); color: #a7f3d0; }
+.chip--tag { border-color: color-mix(in srgb, var(--accent) 25%, transparent); background: color-mix(in srgb, var(--accent) 8%, transparent); color: var(--accent-bright); }
 .chip--person { cursor: pointer; }
 .chip--person:hover { border-color: hsl(var(--hue, 158) 70% 60% / 0.6); color: var(--text-primary); }
 .chip--more { border-style: dashed; cursor: pointer; }
@@ -183,15 +185,15 @@
 .route > li + li::before { content: ''; width: 16px; height: 2px; margin: 0 5px; border-radius: 2px; background: linear-gradient(90deg, var(--wire-violet), var(--accent)); opacity: 0.75; }
 .route__gap span[aria-hidden] { display: grid; place-items: center; min-width: 22px; height: 22px; padding: 0 5px; border: 1px dashed rgb(167 139 250 / 55%); border-radius: 999px; color: #c4b5fd; font-size: 0.7rem; font-weight: 750; font-variant-numeric: tabular-nums; }
 .route__stop.is-via .chip { border-color: rgb(167 139 250 / 70%); background: rgb(167 139 250 / 12%); color: #ede9fe; box-shadow: 0 0 14px -4px rgb(167 139 250 / 70%); }
-.route__here { display: inline-flex; align-items: center; min-height: 28px; padding: 0 10px; border: 1px solid hsl(158 70% 55% / 0.6); border-radius: 999px; background: rgb(52 211 153 / 10%); color: var(--text-primary); font-size: 0.8rem; font-weight: 650; }
+.route__here { display: inline-flex; align-items: center; min-height: 28px; padding: 0 10px; border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--text-primary); font-size: 0.8rem; font-weight: 650; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* Where someone's day is, beside their local time (core.js dayPart). */
 .tag--day { margin-left: 6px; vertical-align: 1px; }
-.tag--work { background: rgb(52 211 153 / 14%); color: #6ee7b7; }
-.tag--edge { background: rgb(251 191 36 / 14%); color: #fcd34d; }
-.tag--night { background: rgb(129 140 248 / 16%); color: #c7d2fe; }
-.tag--weekend { background: rgb(244 114 182 / 14%); color: #f9a8d4; }
+.tag--work { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent-bright); }
+.tag--edge { background: color-mix(in srgb, var(--c-edge) 14%, transparent); color: color-mix(in srgb, var(--c-edge) 70%, #fff); }
+.tag--night { background: color-mix(in srgb, var(--c-night) 16%, transparent); color: color-mix(in srgb, var(--c-night) 50%, #fff); }
+.tag--weekend { background: color-mix(in srgb, var(--c-weekend) 14%, transparent); color: color-mix(in srgb, var(--c-weekend) 60%, #fff); }
 
 .teams { display: grid; gap: 8px; list-style: none; font-size: 0.88rem; }
 .teams li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
@@ -202,7 +204,7 @@
 .prose p + p, .prose ul { margin-top: 8px; }
 .prose ul { padding-left: 18px; }
 .prose a { color: var(--accent-bright); }
-.prose code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); font-size: 0.82em; }
+.prose code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); font-size: 0.9em; }
 
 /* ── Dialogs ─────────────────────────────────────────────────── */
 .dialog__spacer { flex: 1; }
@@ -226,13 +228,13 @@
   border-radius: 10px;
   cursor: pointer;
 }
-.result[aria-selected="true"] { background: rgb(52 211 153 / 14%); box-shadow: inset 0 0 0 2px var(--accent); } /* the 2px accent ring is the 3:1 marker */
+.result[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: inset 0 0 0 2px var(--accent); } /* the 2px accent ring is the 3:1 marker */
 .result:hover { background: var(--surface-2); }
 .result__text { display: grid; min-width: 0; }
 .result__name { overflow: hidden; font-weight: 650; white-space: nowrap; text-overflow: ellipsis; }
 .result__title { overflow: hidden; color: var(--text-secondary); font-size: 0.8rem; white-space: nowrap; text-overflow: ellipsis; }
 .result__why { margin-left: 6px; color: var(--accent-bright); }
-.result mark { padding: 0 1px; border-radius: 3px; background: rgb(52 211 153 / 20%); color: inherit; box-shadow: inset 0 -1.5px 0 var(--accent); }
+.result mark { padding: 0 1px; border-radius: 3px; background: color-mix(in srgb, var(--accent) 20%, transparent); color: inherit; box-shadow: inset 0 -1.5px 0 var(--accent); }
 .result__crumb { max-width: 180px; overflow: hidden; color: var(--text-muted); font-size: 0.74rem; white-space: nowrap; text-overflow: ellipsis; }
 .result--none { display: block; color: var(--text-muted); cursor: default; }
 .result--none:hover { background: none; }
@@ -312,9 +314,21 @@ body.is-dropping .workspace { outline: 2px dashed var(--accent); outline-offset:
   .seg__btn { padding: 0 9px; }
   /* Icon only on a phone; the label stays in the accessibility tree. */
   .stagebar__tools .seg__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  #handWrap { display: none; }
+  /* Hand off stays on a phone; its menu spans the screen so the wide items are never cut off. */
+  #handMenu { position: fixed; top: 60px; right: var(--space-4); left: var(--space-4); min-width: 0; max-height: calc(100dvh - 80px); overflow-y: auto; }
   .result__crumb { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .panel { animation: none; }
 }
+
+/* ── Rama's section of the Workspace Settings sheet (js/workspace.js) ── */
+.ws-scope { display: grid; gap: var(--space-2); margin: 0 0 var(--space-3); padding: 0; border: 0; }
+.ws-scope legend { margin-bottom: var(--space-2); font-size: var(--text-sm); font-weight: 650; }
+.ws-radio { display: flex; align-items: center; gap: var(--space-3); min-height: 44px; font-size: var(--text-sm); line-height: 1.4; cursor: pointer; }
+.ws-radio input { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--accent); }
+.ws-radio:has(input:disabled) { color: var(--text-muted); cursor: default; }
+.ws-faces { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 var(--space-2); }
+.ws-face { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; font-size: var(--text-xs); font-weight: 700; }
+.ws-note { margin: 0 0 var(--space-2); color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.5; }
+.help__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }

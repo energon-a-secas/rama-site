@@ -40,8 +40,9 @@ const MARKS = {
 }
 
 /** Where someone's day is (core.js dayPart), in words and as a colour. */
-export const DAY_WORDS = { work: 'Working hours', edge: 'Before or after work', night: 'Night', weekend: 'Weekend' }
-export const DAY_COLORS = { work: '#34d399', edge: '#fbbf24', night: '#818cf8', weekend: '#f472b6' }
+export const DAY_WORDS = { work: 'Working hours', edge: 'Before or after work', night: 'Night', weekend: 'Day off' }
+/** Tokens in style.css, so themes reach the canvas. */
+export const DAY_COLORS = { work: 'var(--c-work)', edge: 'var(--c-edge)', night: 'var(--c-night)', weekend: 'var(--c-weekend)' }
 
 /** Status words for a card's badge, or ''. */
 export function statusWord(p) {

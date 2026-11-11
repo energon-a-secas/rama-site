@@ -1,13 +1,15 @@
 // ── Who the visitor is ───────────────────────────────────────
-// Three ways to find the visitor's card, strongest first: a ?me= in the link
+// Four ways to find the visitor's card, strongest first: a ?me= in the link
 // (someone sent them there on purpose), the card they picked with Me (saved
-// per org in this browser), and the emails on their Neorgon account. None of
-// them is required: with no match the chart opens at the top.
+// per org in this browser), the emails on their Neorgon account, and the
+// person their Neorgon Workspace says they are (ws-adapter.js
+// meFromWorkspace, by Rama id or email). None of them is required: with no
+// match the chart opens at the top.
 
 import { slug } from './core.js'
 
-/** -> { id, source } where source is 'link' | 'picked' | 'account' | null. */
-export function resolveMe(ix, { param = '', picked = '', emails = [] } = {}) {
+/** -> { id, source } where source is 'link' | 'picked' | 'account' | 'workspace' | null. workspace is a card id already resolved. */
+export function resolveMe(ix, { param = '', picked = '', emails = [], workspace = '' } = {}) {
   const byRef = (ref) => {
     const s = String(ref || '').trim().toLowerCase()
     if (!s) return null
@@ -26,6 +28,7 @@ export function resolveMe(ix, { param = '', picked = '', emails = [] } = {}) {
     const id = byRef(e)
     if (id) return { id, source: 'account' }
   }
+  if (workspace && ix.byId.has(workspace) && !ix.byId.get(workspace).virtual) return { id: workspace, source: 'workspace' }
   return { id: null, source: null }
 }
 

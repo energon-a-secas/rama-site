@@ -1,0 +1,371 @@
+/* ══════════════════════════════════════════════════════════════
+   Neorgon Workspace Kit: the Settings sheet, the header gear and the team banner
+   Canonical source: packages/neorgon-ui/workspace/workspace.css
+   Vendored per site as css/neorgon-workspace.css by
+   packages/neorgon-ui/sync-workspace.sh. Never edit a vendored copy.
+
+   The kit owns .neo-ws-* and no site styles it. Tokens resolve from the site
+   (--accent, --bg, --text-primary) and then from the header kit, the same
+   way the Auth Kit dialog does, so seasonal themes and header skins reach
+   the sheet. A site that needs another accent here sets --neo-ws-accent.
+   ══════════════════════════════════════════════════════════════ */
+
+.neo-ws-sheet,
+.neo-ws-banner {
+  --ws-accent: var(--neo-ws-accent, var(--accent, var(--header-accent, #e879f9)));
+  --ws-bg: var(--neo-ws-bg, var(--bg, #0b0d14));
+  --ws-text: var(--neo-ws-text, var(--text-primary, #f4f4f5));
+  --ws-text-dim: color-mix(in oklab, var(--ws-text) 74%, var(--ws-bg));
+  --ws-surface: color-mix(in oklab, var(--ws-bg) 91%, var(--ws-text) 9%);
+  --ws-raised: color-mix(in oklab, var(--ws-text) 4%, transparent);
+  --ws-border: color-mix(in oklab, var(--ws-text) 15%, transparent);
+  --ws-border-strong: color-mix(in oklab, var(--ws-text) 30%, transparent);
+  --ws-radius: 14px;
+  --ws-ease: var(--ease-out, cubic-bezier(.22, 1, .36, 1));
+}
+
+.neo-ws-frame { display: none !important; }
+
+.neo-ws-sr {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ── Header gear: an icon-only control like .header-home ─────── */
+.neo-ws-gear {
+  display: inline-grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: var(--header-control-h, 40px);
+  height: var(--header-control-h, 40px);
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--header-text, currentColor);
+  cursor: pointer;
+}
+.neo-ws-gear:hover { background: var(--header-menu-hover, rgba(255, 255, 255, .1)); }
+.neo-ws-gear svg { width: 20px; height: 20px; }
+.neo-ws-gear:focus-visible {
+  outline: 2px solid var(--accent, var(--header-accent, #e879f9));
+  outline-offset: 2px;
+}
+
+/* ── The sheet ───────────────────────────────────────────────── */
+body:has(.neo-ws-sheet[open]) { overflow: hidden; }
+
+.neo-ws-sheet {
+  box-sizing: border-box;
+  width: min(520px, calc(100vw - 32px));
+  max-width: none;
+  inset-block-start: var(--ws-top, 0px);
+  max-height: min(820px, calc(100dvh - var(--ws-top, 0px) - 48px));
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--ws-border);
+  border-radius: var(--ws-radius);
+  background: var(--ws-surface);
+  color: var(--ws-text);
+  font-family: var(--font, inherit);
+  box-shadow:
+    0 1px 0 color-mix(in oklab, var(--ws-text) 8%, transparent) inset,
+    0 28px 70px rgba(0, 0, 0, .5);
+  overflow: hidden;
+  color-scheme: dark;
+}
+.neo-ws-sheet[data-scheme="light"] {
+  --ws-surface: color-mix(in oklab, var(--ws-bg) 97%, var(--ws-text) 3%);
+  box-shadow: 0 28px 70px rgba(15, 23, 42, .22);
+  color-scheme: light;
+}
+.neo-ws-sheet[open] { display: flex; flex-direction: column; }
+.neo-ws-sheet::backdrop {
+  background: rgba(3, 5, 14, .62);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+.neo-ws-sheet[data-scheme="light"]::backdrop { background: rgba(15, 23, 42, .35); }
+.neo-ws-sheet::before {
+  content: "";
+  flex: none;
+  height: 3px;
+  background: linear-gradient(90deg, var(--ws-accent), color-mix(in oklab, var(--ws-accent) 30%, transparent));
+}
+
+.neo-ws-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 18px 12px 8px 20px;
+}
+.neo-ws-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 650;
+  line-height: 1.25;
+  letter-spacing: -.01em;
+  color: var(--ws-text);
+}
+.neo-ws-lede { margin: 3px 0 0; font-size: .875rem; line-height: 1.45; color: var(--ws-text-dim); }
+.neo-ws-close {
+  align-self: start;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px; height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ws-text-dim);
+  cursor: pointer;
+}
+.neo-ws-close:hover { background: color-mix(in oklab, var(--ws-text) 10%, transparent); color: var(--ws-text); }
+
+.neo-ws-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 4px 20px 16px;
+}
+.neo-ws-section { padding: 14px 0 16px; border-top: 1px solid var(--ws-border); }
+.neo-ws-section:first-child { border-top: 0; padding-top: 6px; }
+.neo-ws-section-title {
+  margin: 0 0 4px;
+  font-size: .8125rem;
+  font-weight: 650;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--ws-text-dim);
+}
+.neo-ws-note, .neo-ws-hint { margin: 0 0 10px; font-size: .8125rem; line-height: 1.5; color: var(--ws-text-dim); }
+.neo-ws-hint { margin: 6px 0 0; }
+.neo-ws-hint:empty { display: none; }
+
+/* ── Fields ──────────────────────────────────────────────────── */
+.neo-ws-field { margin: 12px 0 0; padding: 0; border: 0; min-width: 0; }
+.neo-ws-field > label, .neo-ws-field > legend {
+  display: block;
+  margin: 0 0 6px;
+  padding: 0;
+  font-size: .875rem;
+  font-weight: 600;
+  color: var(--ws-text);
+}
+.neo-ws-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
+.neo-ws-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.neo-ws-field .neo-ws-row { margin-top: 0; }
+.neo-ws-to { color: var(--ws-text-dim); font-size: .875rem; }
+
+.neo-ws-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--ws-border-strong);
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--ws-bg) 70%, var(--ws-surface));
+  color: var(--ws-text);
+  font: inherit;
+  font-size: .9375rem;
+}
+select.neo-ws-input {
+  /* WebKit sizes a native select by its own metrics and ignores min-height. */
+  -webkit-appearance: none;
+  appearance: none;
+  height: 44px;
+  padding-right: 34px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ws-text-dim) 50%),
+    linear-gradient(135deg, var(--ws-text-dim) 50%, transparent 50%);
+  background-position: calc(100% - 19px) 52%, calc(100% - 14px) 52%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+input.neo-ws-input { height: 44px; }
+.neo-ws-row .neo-ws-input { width: auto; flex: 1 1 120px; }
+.neo-ws-input[aria-invalid] { border-color: #f87171; }
+.neo-ws-sheet[data-scheme="light"] .neo-ws-input[aria-invalid] { border-color: #dc2626; }
+
+/* One row of seven on a 375px phone; below that the boxes narrow rather than wrap one day alone. */
+.neo-ws-days { display: grid; grid-template-columns: repeat(7, minmax(0, 44px)); gap: 4px; }
+.neo-ws-day { position: relative; display: grid; }
+.neo-ws-day input {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.neo-ws-day > span[aria-hidden] {
+  display: grid;
+  place-items: center;
+  height: 44px;
+  border: 1px solid var(--ws-border-strong);
+  border-radius: 10px;
+  font-size: .875rem;
+  font-weight: 600;
+  color: var(--ws-text-dim);
+  transition: background .15s var(--ws-ease), border-color .15s var(--ws-ease), color .15s var(--ws-ease);
+}
+.neo-ws-day input:checked + span {
+  border-color: var(--ws-accent);
+  background: color-mix(in oklab, var(--ws-accent) 22%, transparent);
+  color: var(--ws-text);
+}
+.neo-ws-day input:focus-visible + span { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+
+.neo-ws-check { display: flex; gap: 10px; align-items: center; min-height: 44px; font-size: .875rem; cursor: pointer; }
+.neo-ws-check input { width: 20px; height: 20px; margin: 0; accent-color: var(--ws-accent); }
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+.neo-ws-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--ws-border-strong);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ws-text);
+  font: inherit;
+  font-size: .875rem;
+  font-weight: 550;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background .15s var(--ws-ease), border-color .15s var(--ws-ease);
+}
+.neo-ws-btn:hover { background: color-mix(in oklab, var(--ws-text) 8%, transparent); }
+.neo-ws-btn:disabled { opacity: .5; cursor: not-allowed; }
+.neo-ws-btn[hidden] { display: none; }
+.neo-ws-primary {
+  border-color: var(--ws-accent);
+  background: color-mix(in oklab, var(--ws-accent) 24%, transparent);
+}
+.neo-ws-primary:hover { background: color-mix(in oklab, var(--ws-accent) 34%, transparent); }
+.neo-ws-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.neo-ws-notice:not(:empty) { display: grid; gap: 8px; justify-items: start; margin-top: 10px; font-size: .8125rem; color: var(--ws-text-dim); }
+.neo-ws-notice p { margin: 0; }
+
+.neo-ws-sheet :is(.neo-ws-btn, .neo-ws-close, .neo-ws-input, .neo-ws-check input):focus-visible,
+.neo-ws-banner :is(.neo-ws-btn, .neo-ws-close):focus-visible {
+  outline: 2px solid var(--ws-accent);
+  outline-offset: 2px;
+}
+
+/* ── Team ────────────────────────────────────────────────────── */
+.neo-ws-status { margin: 6px 0 10px; font-size: .875rem; line-height: 1.5; color: var(--ws-text-dim); }
+.neo-ws-status[data-status="shared"]::before,
+.neo-ws-status[data-status="stale"]::before {
+  content: "";
+  display: inline-block;
+  width: 8px; height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  vertical-align: 1px;
+  background: #34d399;
+}
+.neo-ws-status[data-status="stale"]::before { background: #fbbf24; }
+.neo-ws-me { display: flex; gap: 8px; align-items: center; margin: 0 0 10px; font-size: .875rem; }
+.neo-ws-team-body:not(:empty) { display: grid; gap: 8px; margin-top: 14px; }
+.neo-ws-teams { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.neo-ws-team {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--ws-border);
+  border-left: 3px solid var(--team, var(--ws-accent));
+  border-radius: 10px;
+  background: var(--ws-raised);
+}
+.neo-ws-team-head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.neo-ws-team-name { font-size: .9375rem; font-weight: 600; overflow-wrap: anywhere; }
+.neo-ws-team-meta { font-size: .8rem; color: var(--ws-text-dim); }
+.neo-ws-faces { display: flex; flex-wrap: wrap; gap: 4px; }
+.neo-ws-face {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--face-size, 28px);
+  height: var(--face-size, 28px);
+  border-radius: 50%;
+  background: var(--face, #475569);
+  color: var(--face-ink, #fff);
+  font-size: calc(var(--face-size, 28px) * .4);
+  font-weight: 650;
+  line-height: 1;
+}
+.neo-ws-more { align-self: center; font-size: .8rem; color: var(--ws-text-dim); }
+
+.neo-ws-foot {
+  flex: none;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--ws-border);
+  font-size: .8125rem;
+  line-height: 1.5;
+  color: var(--ws-text-dim);
+}
+.neo-ws-foot p { margin: 0; }
+
+/* ── The team banner (in the tool's page) ────────────────────── */
+.neo-ws-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 8px 8px 8px 16px;
+  border: 1px solid color-mix(in oklab, var(--ws-accent) 45%, transparent);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--ws-accent) 10%, var(--ws-bg));
+  color: var(--ws-text);
+}
+.neo-ws-banner[hidden] { display: none !important; }
+.neo-ws-banner-text { flex: 1 1 220px; margin: 0; font-size: .875rem; line-height: 1.45; }
+.neo-ws-banner .neo-ws-close { align-self: center; }
+
+/* ── Narrow screens: a sheet from the bottom edge ────────────── */
+@media (max-width: 560px) {
+  .neo-ws-sheet {
+    inset-block-start: 0;
+    width: 100vw;
+    max-height: 92dvh;
+    margin: auto 0 0;
+    border-bottom: 0;
+    border-radius: 18px 18px 0 0;
+  }
+  .neo-ws-grid { grid-template-columns: minmax(0, 1fr); }
+  .neo-ws-foot { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .neo-ws-sheet[open] { animation: neo-ws-in .22s var(--ws-ease); }
+  .neo-ws-sheet[open]::backdrop { animation: neo-ws-fade .22s ease-out; }
+}
+@media (max-width: 560px) and (prefers-reduced-motion: no-preference) {
+  .neo-ws-sheet[open] { animation-name: neo-ws-up; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .neo-ws-sheet *, .neo-ws-banner * { transition: none !important; }
+}
+@keyframes neo-ws-in { from { opacity: 0; transform: translateY(8px) scale(.985); } }
+@keyframes neo-ws-up { from { opacity: 0; transform: translateY(28px); } }
+@keyframes neo-ws-fade { from { opacity: 0; } }
+
+@media (forced-colors: active) {
+  .neo-ws-sheet { border: 1px solid CanvasText; }
+  .neo-ws-sheet::before { background: Highlight; }
+  .neo-ws-day input:checked + span { border: 2px solid Highlight; }
+  .neo-ws-face { border: 1px solid CanvasText; }
+}

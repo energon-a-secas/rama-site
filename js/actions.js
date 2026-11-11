@@ -208,6 +208,9 @@ export function thisIsMe(id, yes) {
   if (!yes && state.me.source === 'account') {
     return toast('Your Neorgon account email is on this card, so Rama keeps finding you here. Sign out, or change the email in the document', 4200)
   }
+  if (!yes && state.me.source === 'workspace') {
+    return toast('Your Neorgon Workspace says this card is you. Change who you are on the workspace page (Settings, Open your workspace)', 4200)
+  }
   // A ?me= in the link names the visitor until they say otherwise, either way.
   if (state.param && (!yes || state.me.id !== id)) {
     state.param = ''

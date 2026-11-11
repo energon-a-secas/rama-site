@@ -9,7 +9,7 @@ import { CORE_KEYS } from './schema.js'
 import { escHtml, $ } from './utils.js'
 import { avatar, statusWord, employmentWord, shortDate, hueOf, DAY_WORDS } from './people.js'
 import { renderMarkdown } from './markdown.js'
-import { fieldHref, plural, tzName, clockAt, dayPart } from './core.js'
+import { fieldHref, plural, tzName, clockAt, dayPart, relativeTo, hourCycleOf } from './core.js'
 import { between } from './tree.js'
 import { icon } from './icons.js'
 
@@ -53,8 +53,8 @@ function profile(p) {
   if (p.location || p.country) contact.push(row('pin', escHtml(place(p))))
   if (p.tz) {
     const clock = clockAt(p.tz)
-    const part = dayPart(clock)
-    const word = part === 'edge' ? (clock.hour < 12 ? 'Before work' : 'After work') : DAY_WORDS[part]
+    const part = dayPart(clock, state.prefs)
+    const word = part === 'edge' ? (clock.hour * 60 < state.prefs.h[0] ? 'Before work' : 'After work') : DAY_WORDS[part]
     contact.push(row(part === 'night' ? 'moon' : 'clock', `<span data-localtime="${escHtml(p.tz)}">${escHtml(localTime(p.tz))}</span>${word ? ` <span class="tag tag--day tag--${part}">${escHtml(word)}</span>` : ''}`))
   }
 
@@ -190,19 +190,13 @@ function place(p) {
   return `${p.location}, ${country}`
 }
 
-/** "14:32 there, 3 hours ahead of you". */
+/** "14:32 there, 3 hours ahead of you": in the visitor's time format, against the zone in their Workspace settings. */
 export function localTime(tz) {
   try {
     const now = new Date()
-    const time = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', timeZone: tzName(tz) }).format(now)
-    const offset = (zone) => {
-      const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'longOffset' }).formatToParts(now).find((x) => x.type === 'timeZoneName')?.value || 'GMT'
-      const m = /GMT([+-])(\d{2}):?(\d{2})?/.exec(parts)
-      return m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3] || 0)) : 0
-    }
-    const diff = (offset(tzName(tz)) - offset(Intl.DateTimeFormat().resolvedOptions().timeZone)) / 60
-    const rel = diff === 0 ? 'same time as you' : `${Math.abs(diff) % 1 ? Math.abs(diff).toFixed(1) : Math.abs(diff)} ${Math.abs(diff) === 1 ? 'hour' : 'hours'} ${diff > 0 ? 'ahead of' : 'behind'} you`
-    return `${time} there, ${rel}`
+    const time = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', timeZone: tzName(tz), hourCycle: hourCycleOf(state.prefs.c) }).format(now)
+    const rel = relativeTo(tz, state.prefs.tz || Intl.DateTimeFormat().resolvedOptions().timeZone, now)
+    return rel ? `${time} there, ${rel}` : `${time} there`
   } catch {
     return tz
   }

@@ -12,7 +12,8 @@ their way around an org, and for the manager who keeps the document.
 
 ```bash
 make serve     # http://localhost:8896 (ES modules: file:// will not load them)
-make test      # node --test over the pure core: schema, tree, handoffs, formats
+make test      # node --test over the pure core: schema, tree, handoffs, formats, the workspace adapter
+node test/workspace-browser.mjs   # the Workspace in three engines: its own servers on 9340 and 9341
 ```
 
 The only dependency is js-yaml 4.3.2 from jsdelivr (pinned, SRI, allowed by exact path in the CSP),
@@ -32,15 +33,16 @@ reads the index `indexOrg()` builds from the model.
 | `js/handoff.js` | `toFloorplanDoc()` (team leads hand over as their team, other managers as reporting-line rooms, three levels, explicit ids) and `toRepartoDoc()` (one manager's direct reports, 40-character ids, 400 cap), plus the `#d=` and `#p=` links |
 | `js/formats.js`, `js/core.js` | CSV in and out, Mermaid, vCard; slug, `unfold()` (ł, ß and the other letters NFKD keeps whole, shared by ids and search), `str()` (control characters out, no split surrogates), `safeUrl`, `safeColor`, `fieldHref`, base64url; `clockAt()` and `dayPart()` for local time |
 | `js/docio.js`, `js/yaml.js` | text in and out: format sniffing, `readDoc()`, `#d=`, `?src=`; js-yaml with CORE_SCHEMA to read and the default schema to write |
-| `js/state.js`, `js/me.js` | the document text and model, view state (`ui`), preferences, the per-org "this is me" pick; `resolveMe()` (`?me=` > picked > account email) |
+| `js/state.js`, `js/me.js` | the document text and model, view state (`ui`), preferences, the per-org "this is me" pick; `resolveMe()` (`?me=` > picked > account email > the workspace's `me.person`) |
 | `js/render.js`, `js/render-chart.js`, `js/wires.js` | the page and the chart: chain pills, lead card, row, columns, buckets; wires measured from the laid-out cards |
 | `js/overview.js` | the radial overview: division wedges, rings, the lit path and the visitor's violet route to it, pan and zoom, colour modes and the legend |
 | `js/panel.js`, `js/people.js`, `js/markdown.js` | the profile panel; avatars, hues, status words and card labels; escape-first markdown |
 | `js/nav.js` | `go(id)`, the only way the focus changes: view transitions, history (`?at=`), arrow-key steps |
 | `js/search.js`, `js/editor.js`, `js/actions.js`, `js/boot.js`, `js/menus.js`, `js/events.js` | the palette and the picker, the document editor, exports and handoffs, the first document and card, header menus, wiring |
+| `js/ws-adapter.js`, `js/workspace.js` | the Neorgon Workspace: `toWorkspace()` (a manager's direct team or the whole org as a Schema v1 payload, ids `rama-<id>`), `meFromWorkspace()`, `ramaPrefs()` (pure); the client's start, Rama's section of the Settings sheet and the save (wiring) |
 | `examples/lanternfish.yaml` | the invented sample org; fetched on a first visit, never saved until the visitor edits |
 
-Vendored from `packages/neorgon-ui/`, never edit in place: `js/neorgon-{header,footer,beacon,dom,persist,auth,auth-sites}.js`, `js/neokeys/*.js` (the Keys kit), `css/neorgon-*.css`.
+Vendored from `packages/neorgon-ui/`, never edit in place: `js/neorgon-{header,footer,beacon,dom,persist,auth,auth-sites}.js`, `js/neorgon-workspace*.js` and `css/neorgon-workspace.css` (`sync-workspace.sh`), `js/neokeys/*.js` (the Keys kit), `css/neorgon-*.css`.
 
 **Shortcuts are data, registered with the Keys kit** in `events.js` (`bindKeys()`): `?` is the kit's sheet, which lists them, turns them off and remaps them (WCAG 2.1.4). A new single-key shortcut goes there, never into a raw keydown handler; `onKey` keeps only Ctrl or Cmd+K and Escape. `e` is the fleet's export key, which is why Edit the document is `D`.
 
@@ -51,6 +53,7 @@ Vendored from `packages/neorgon-ui/`, never edit in place: `js/neorgon-{header,f
 - `rama-site:previous` (version 2) is that Restore list: the last 8 orgs, newest first, deduplicated by text. Version 1 held one org and migrates to a one-entry list.
 - `rama-site:preferences` holds `{ picked: { <org key>: <person id> }, view, panel, colorBy }`. The org key is the title's slug, or a hash of the title when it has no Latin letters.
 - `ui` (focus, view, panel, colour mode, open buckets) is never part of a document.
+- **The Neorgon Workspace** (`packages/neorgon-ui/workspace/`): Rama reads the `neo_me` cookie (zone for "ahead of you", working hours and days for the day parts, time format; `state.prefs`) and the workspace's `me.person` (`state.wsTeam`, the fourth and weakest way to find your card), and saves through the Workspace page's review (Hand off > Your workspace, or Settings). It stores nothing of its own for it; the kit keeps `neo-ws:cache`.
 - Signing in (Auth Kit, production Clerk) is used only to read the account's email addresses and match them to `people[].email`. Nothing is stored per account.
 
 ## Gotchas
@@ -70,6 +73,12 @@ Vendored from `packages/neorgon-ui/`, never edit in place: `js/neorgon-{header,f
 - **A foreign document's photos do not load until the visitor says so** (`state.foreign`, set for `#d=` and `?src=`, kept in the saved record and the Restore list). Each person can carry a unique photo URL, and which ones load (around the card Rama centres on, found by the visitor's account email) would tell the host who opened the link. The notice offers Show photos; `trustDoc()` clears the flag.
 - **`img-src` and `connect-src` carry `https:`** on purpose (`photo:` URLs and `?src=`). Narrowing them would break both; the rest of the policy is exact hosts.
 - **No Markdown is published**: `_config.yml` excludes it, so `/CLAUDE.html` must answer 404 after a push. `llms.txt` is served on purpose.
+- **`startWorkspace()` runs before `openFirstDocument()`** (app.js): the kit takes a pick's answer (`#neo-ws=`) from the hash and strips it before boot.js reads `#d=`. Move it after and a team answer reads as a damaged org link.
+- **Settings is Rama's own button, not `ws.mountGear()`.** A gear mounted by the module lands after the Header Kit has built its phone menu, so it stays outside the ⋯ panel and is squeezed to 20px at 390. `,` is a Keys kit shortcut in `bindKeys()`, which the kit's own key handler defers to; `markSettingsKey()` keeps the button's `aria-keyshortcuts` on the key it is moved to.
+- **A direct team's save carries no document teams**, only `<name>'s team`: a document team cut down to the people in scope would replace the whole team an earlier save of the org stored. The whole org carries the document teams, then one reporting-line team per manager, up to the workspace's 100.
+- **The day parts follow the visitor's working day** (`dayPart(clock, state.prefs)`). `prefs()` fills unset values from the device (09:00 to 17:00), so Rama's own 09:00 to 18:00 (`WORK_DAY`) applies only before the client starts.
+- **Content colours are tokens** (`--c-*`, `--mark-s`, `--mark-l`, `--rim-l` in style.css). overview.js writes `var(--c-...)` into each mark's `--c`, never a hex, so a theme reaches the canvas; `TRACK_COLORS` in roles.js stays hex because `roleColor()` is model data.
+- **`frame-src` carries `http://localhost:*`** for the Workspace frame in development (any port `neo-ws:dev-origin` names). Never test a CSP change by rewriting the page with `page.route`: Chromium then treats the page as public, and Local Network Access refuses the localhost frame.
 
 ## Do not touch
 

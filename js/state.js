@@ -8,6 +8,7 @@ import { createStore } from './neorgon-persist.js'
 import { readDoc, modelToText } from './docio.js'
 import { indexOrg } from './tree.js'
 import { resolveMe } from './me.js'
+import { meFromWorkspace } from './ws-adapter.js'
 import { slug, hash } from './core.js'
 
 const docStore = createStore({ key: 'rama-site:doc', version: 1 })
@@ -33,6 +34,9 @@ export const state = {
   me: { id: null, source: null },
   emails: [],          // the signed-in account's addresses
   param: '',           // ?me= from the link
+  wsTeam: null,        // the Neorgon Workspace's copy, for its me.person (js/workspace.js)
+  // The visitor's Workspace settings Rama reads (ws-adapter.js ramaPrefs): zone, working hours and days, time format.
+  prefs: { tz: '', h: [540, 1080], d: '12345', c: '' },
 }
 
 export const ui = {
@@ -197,7 +201,7 @@ export function takePrevious(i) {
 
 export function refreshMe() {
   if (!state.ix) return
-  state.me = resolveMe(state.ix, { param: state.param, picked: pickedFor(), emails: state.emails })
+  state.me = resolveMe(state.ix, { param: state.param, picked: pickedFor(), emails: state.emails, workspace: state.wsTeam ? meFromWorkspace(state.wsTeam, state.ix) : '' })
 }
 
 export const person = (id) => state.ix?.byId.get(id) || null
