@@ -13,7 +13,7 @@ import { normalizeOrg } from '../js/schema.js'
 import { indexOrg } from '../js/tree.js'
 import { dayPart, relativeTo, hourCycleOf, offsetMinutes, WORK_DAY } from '../js/core.js'
 import { resolveMe } from '../js/me.js'
-import { wsId, toWorkspace, scopePeople, hasTeam, meFromWorkspace, ramaPrefs, TOOL } from '../js/ws-adapter.js'
+import { wsId, toWorkspace, scopePeople, hasTeam, meFromWorkspace, ramaPrefs, saveUnsure, TOOL } from '../js/ws-adapter.js'
 import * as W from '../js/neorgon-workspace-core.js'
 
 const build = (doc) => indexOrg(normalizeOrg(doc).model)
@@ -284,8 +284,39 @@ describe('relativeTo and hourCycleOf', () => {
   })
 })
 
+describe('saveUnsure: when a save warns before it leaves', () => {
+  test('offline warns, whatever the frame says', () => {
+    for (const frame of ['pending', 'ready', 'none']) assert.equal(saveUnsure({ online: false, frame }), true)
+  })
+  test('a frame that never answered warns', () => {
+    assert.equal(saveUnsure({ online: true, frame: 'none' }), true)
+  })
+  test('a frame still looking, or one that answered, goes straight through', () => {
+    assert.equal(saveUnsure({ online: true, frame: 'pending' }), false)
+    assert.equal(saveUnsure({ online: true, frame: 'ready' }), false)
+    assert.equal(saveUnsure(), false)
+  })
+})
+
 describe('the wiring module', () => {
   const src = readFileSync(join(ROOT, 'js/workspace.js'), 'utf8')
+  test('a save asks saveUnsure before it navigates', () => {
+    assert.match(src, /saveUnsure\(\{ online, frame: ws\.team\(\)\.frame \}\)/)
+  })
+
+  test('the preview faces use the kit\'s colorFor, inkOn and initials, not the chart\'s hue', () => {
+    assert.match(src, /colorFor\(p\)/)
+    assert.match(src, /inkOn\(bg\)/)
+    assert.doesNotMatch(src, /hueOf/)
+  })
+
+  test('the scope radios are drawn on tokens, not the browser\'s dim default', () => {
+    const css = readFileSync(join(ROOT, 'css/panel.css'), 'utf8')
+    const rule = /\.ws-radio input \{([^}]+)\}/.exec(css)[1]
+    assert.match(rule, /appearance: none/)
+    assert.match(rule, /border: 2px solid var\(--ws-text-dim/)
+  })
+
   test('builds its part of the sheet with textContent only', () => {
     assert.doesNotMatch(src, /innerHTML|insertAdjacentHTML|outerHTML/)
   })

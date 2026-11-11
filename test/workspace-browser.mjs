@@ -22,6 +22,8 @@ const W = await import('../js/neorgon-workspace-core.js')
 
 const RAMA_PORT = Number(process.env.RAMA_PORT || 9340)
 const FRAME_PORT = Number(process.env.FRAME_PORT || 9341)
+const DEAD = `http://localhost:${Number(process.env.DEAD_PORT || FRAME_PORT + 1)}`   // nothing listens: a workspace that never answers
+const SHOTS = process.env.WS_SHOTS || '/tmp'
 const RAMA = `http://localhost:${RAMA_PORT}`
 const FRAME = `http://localhost:${FRAME_PORT}`
 const engines = (process.env.WS_ENGINES || 'chromium,firefox,webkit').split(',')
@@ -33,7 +35,7 @@ const busy = (port) => new Promise((resolve) => {
   sock.on('connect', () => { sock.destroy(); resolve(true) })
   sock.on('error', () => resolve(false))
 })
-for (const port of [RAMA_PORT, FRAME_PORT]) {
+for (const port of [RAMA_PORT, FRAME_PORT, Number(new URL(DEAD).port)]) {
   if (await busy(port)) { console.error(`Port ${port} is in use; stop that server or set RAMA_PORT and FRAME_PORT.`); process.exit(2) }
 }
 
@@ -130,7 +132,25 @@ for (const eng of engines) {
       check(eng, ', opens the Settings sheet', await sheet.evaluate((d) => d.open).catch(() => false))
       const section = await sheet.textContent().catch(() => '')
       check(eng, 'the sheet carries Rama\'s section and its save action', /What "Save to your workspace" sends/.test(section) && /Save to your workspace/.test(section))
-      check(eng, 'the saved people are drawn in their chart hues', await page.locator('.ws-face').count() > 0 && await page.locator('.ws-face').first().evaluate((el) => /^\d/.test(el.style.getPropertyValue('--hue'))))
+      const faces = await page.locator('.ws-face').evaluateAll((els) => els.map((el) => [el.style.getPropertyValue('--face'), el.style.getPropertyValue('--face-ink'), el.textContent]))
+      const payload = await page.evaluate(async () => (await import('./js/workspace.js')).payloadFor())
+      const want = payload.people.slice(0, 8).map((p) => [W.colorFor(p), W.inkOn(W.colorFor(p)), W.initials(p.name)])
+      check(eng, 'the preview faces are the workspace\'s (colorFor, inkOn, initials)', faces.length > 0 && JSON.stringify(faces) === JSON.stringify(want), JSON.stringify(faces.slice(0, 2)))
+      // The unchecked radio's ring against the sheet: 3:1 or more (WCAG 1.4.11), measured on a canvas so color-mix resolves.
+      const ring = await page.evaluate(() => {
+        const input = [...document.querySelectorAll('.ws-radio input')].find((i) => !i.checked && !i.disabled)
+        if (!input) return 0
+        const cv = document.createElement('canvas'); cv.width = cv.height = 1
+        const g = cv.getContext('2d', { willReadFrequently: true })
+        const px = (...fills) => { g.clearRect(0, 0, 1, 1); for (const f of fills) { g.fillStyle = f; g.fillRect(0, 0, 1, 1) } return [...g.getImageData(0, 0, 1, 1).data].slice(0, 3) }
+        const sheet = getComputedStyle(document.querySelector('dialog.neo-ws-sheet')).backgroundColor
+        const bg = px(getComputedStyle(document.body).backgroundColor, sheet)
+        const fg = px(getComputedStyle(document.body).backgroundColor, sheet, getComputedStyle(input).borderTopColor)
+        const lum = (c) => { const l = c.map((v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }); return 0.2126 * l[0] + 0.7152 * l[1] + 0.0722 * l[2] }
+        const [a, b] = [lum(fg), lum(bg)].sort((x, y) => y - x)
+        return (a + 0.05) / (b + 0.05)
+      })
+      check(eng, 'the unchecked radio\'s ring reads at 3:1 or more on the sheet', ring >= 3, ring.toFixed(2))
       await page.keyboard.press('Escape')
       await page.waitForTimeout(200)
       check(eng, 'Escape closes it and focus goes back', !(await sheet.evaluate((d) => d.open).catch(() => true)) && await page.evaluate(() => document.activeElement && document.activeElement !== document.body))
@@ -266,6 +286,44 @@ for (const eng of engines) {
       const heights = new Set(row.filter((x) => x.el !== 'header-title-link').map((x) => x.h))
       check(eng, `the phone header fits at ${width}`, clash.length === 0 && row.at(-1).rt <= width && heights.size === 1, `${row.map((x) => `${x.el} ${Math.round(x.l)}-${Math.round(x.rt)} h${x.h}`).join(', ')}`)
       await ctx.close()
+    }
+
+    // 9. A save that may not arrive: the frame never answered (nothing listens on DEAD_PORT), or the browser is offline. Rama warns and stays.
+    {
+      const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+      await ctx.addInitScript((dead) => { try { localStorage.setItem('neo-ws:dev-origin', dead) } catch { /* no storage */ } }, DEAD)
+      const { page, errors } = await openRama(ctx)
+      await page.evaluate(async () => { window.__ws = (await import('./js/neorgon-workspace.js')).NeoWorkspace.current })
+      await page.waitForFunction(() => window.__ws.team().frame === 'none', null, { timeout: 9000, polling: 250 }).catch(() => {})
+      const start = page.url()
+      await page.locator('#handBtn').click()
+      await page.locator('[data-handoff="ws-org"]').click()
+      const warn = page.locator('#wsWarnDialog')
+      await warn.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {})
+      check(eng, 'an unreachable workspace warns before leaving', await warn.evaluate((d) => d.open).catch(() => false) && page.url() === start)
+      check(eng, 'the warning starts on Stay here', await page.evaluate(() => document.activeElement?.dataset.wsWarn) === 'stay')
+      await page.screenshot({ path: `${SHOTS}/rama-warn-${eng}.png` }).catch(() => {})
+      await page.keyboard.press('Enter')
+      await page.waitForTimeout(200)
+      check(eng, 'Stay here closes it, keeps the page and returns focus to Hand off', !(await warn.evaluate((d) => d.open)) && page.url() === start && await page.evaluate(() => document.activeElement?.id) === 'handBtn')
+      await page.locator('#handBtn').click()
+      await page.locator('[data-handoff="ws-org"]').click()
+      const leaving = page.waitForRequest((r) => r.url().startsWith(`${DEAD}/workspace/`), { timeout: 5000 }).then(() => true, () => false)
+      await page.locator('[data-ws-warn="go"]').click()
+      check(eng, 'Open it anyway still goes to the Workspace page', await leaving)
+      check(eng, 'no page errors while warning', errors.filter((e) => !/ERR_CONNECTION|connection refused|Could not connect|NS_ERROR/i.test(e)).length === 0, errors.slice(0, 3).join(' | '))
+      await ctx.close()
+
+      const live = await context(browser)
+      const opened = await openRama(live)
+      await live.setOffline(true)
+      await opened.page.locator('#handBtn').click()
+      await opened.page.locator('[data-handoff="ws-org"]').click()
+      await opened.page.locator('#wsWarnDialog').waitFor({ state: 'visible', timeout: 3000 }).catch(() => {})
+      const text = await opened.page.locator('#wsWarnBody').textContent().catch(() => '')
+      check(eng, 'offline, the warning says so', /offline/.test(text), text.slice(0, 60))
+      await live.setOffline(false)
+      await live.close()
     }
 
     // 8. Analytics on the production host (Chromium): no beacon runs while the address holds a pick's answer.
