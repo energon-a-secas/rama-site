@@ -116,3 +116,11 @@ Rama owns the org; other Neorgon tools read a slice of it through the link contr
 
 - **Floorplan** (`https://floorplan.neorgon.com/#d=`): everyone at or under a person, as rooms. A manager who leads a team (`teams[].lead`) hands over as that team, splits included; every other manager becomes a room holding them and their reports, nested three levels deep. Every person is sent with an explicit id. Past Floorplan's 32 KB link limit, the YAML downloads instead.
 - **Reparto** (`https://reparto.neorgon.com/#p=`): one manager's direct reports as a sprint-capacity plan (a person with no reports hands over their manager's team). Open roles arrive as open seats, `country` picks each person's holidays, and the areas the team owns arrive as unestimated deliverables. Ids are shortened to Reparto's 40 characters; past its 400-person cap the rest are left out and the visitor is told.
+
+## Your settings and your team (Neorgon Workspace)
+
+Settings (in the header, or the `,` key) holds your time zone, working hours, work days, week start, time format and country. They live in one small cookie on neorgon.com (`neo_me`) that every Neorgon planning tool reads; it never holds a name or an email. Your people and teams live in this browser on the Workspace page, https://neorgon.com/workspace/. Rama reads them through a hidden read-only frame (Chrome, Edge, Firefox, Android) or, where browsers keep frames apart (Safari, every iOS browser), through "Load your team", a one-tap round trip to that page. Saving goes through a review on the Workspace page and only on the visitor's click: Hand off > Your workspace sends one manager's direct team (as `<name>'s team`) or the whole org (people with title, email, zone, country, location, manager, tags; the document's teams; one reporting-line team per manager). Nothing is sent to a server. The Workspace page explains what it keeps: https://neorgon.com/workspace/ and https://neorgon.com/privacy/.
+
+- Your zone sets "N hours ahead of you"; your working hours and days set the day parts (Working hours, After work, Day off) in the panel and the overview; your time format sets every clock.
+- The workspace's "which person is you" is the fourth way Rama finds your card, after `?me=`, your pick and your account email.
+- Ids sent are `rama-<id>`, so a second save adds nobody.
