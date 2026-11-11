@@ -299,6 +299,9 @@ function create(opts) {
       btn.innerHTML = GEAR
       btn.addEventListener('click', () => open({ invoker: btn }))
       host.insertBefore(btn, host.querySelector(':scope > .header-overflow'))
+      // The Header Kit built its phone menu before the gear existed: let it fold the gear in
+      // too, or at 390 the gear squeezes the menu's toggle under the home link.
+      if (!keepMobile) { try { window.NeoHeader && window.NeoHeader.syncOverflow && window.NeoHeader.syncOverflow() } catch { /* no header kit */ } }
     }
     bindKey()
     markGear()
@@ -316,6 +319,10 @@ function create(opts) {
   }
 
   const keyOff = () => safeGet(KEY_OFF, '') === '1'
+  // A site's own modal is open (a native dialog, or role=dialog with aria-modal): , stays out of it.
+  const modal = (el) => { if (el.localName !== 'dialog') return true; try { return el.matches(':modal') } catch { return true } }
+  const otherModal = () => [...document.querySelectorAll('dialog[open]:not(.neo-ws-sheet), [aria-modal="true"]')]
+    .some((el) => modal(el) && el.getClientRects().length && !el.closest('[hidden]'))
   const typing = (target) => {
     const keys = window.NeoKeys
     if (keys && typeof keys.isTypingTarget === 'function') { try { return keys.isTypingTarget(target) } catch { /* fall through */ } }
@@ -327,7 +334,7 @@ function create(opts) {
     keyBound = true
     document.addEventListener('keydown', (event) => {
       if (event.key !== ',' || event.ctrlKey || event.metaKey || event.altKey || event.defaultPrevented || event.isComposing) return
-      if (isSheetOpen() || keyOff() || typing(event.composedPath ? event.composedPath()[0] : event.target)) return
+      if (isSheetOpen() || keyOff() || otherModal() || typing(event.composedPath ? event.composedPath()[0] : event.target)) return
       const keys = window.NeoKeys
       if (keys) {
         try {

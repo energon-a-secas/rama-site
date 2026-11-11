@@ -75,11 +75,23 @@ function shell() {
     // The close event is queued: focus the visitor (or a script) already moved elsewhere stays there.
     const active = document.activeElement
     if (active && active !== document.body && active !== document.documentElement && !dialog.contains(active)) return
-    const target = was && was.invoker && was.invoker.isConnected ? was.invoker : document.querySelector('.neo-ws-gear')
-    if (target && target.focus) target.focus({ preventScroll: true })
+    const target = returnTarget(was && was.invoker)
+    if (target) target.focus({ preventScroll: true })
   })
   document.body.append(dialog)
   return dialog
+}
+
+// Focus goes back to the opener while it can take it. An opener inside the
+// Header Kit's phone menu, or a dialog, is hidden by now (the menu closed when
+// it was pressed), so focus would land on <body>: then the menu's toggle, the
+// gear or the site's own Settings button, whichever is on screen, takes it.
+const shown = (el) => !!(el && el.isConnected && typeof el.focus === 'function' && el.getClientRects().length && !el.closest('dialog:not([open]), [hidden], [inert]'))
+function returnTarget(invoker) {
+  if (shown(invoker)) return invoker
+  const near = invoker && invoker.isConnected && invoker.closest ? invoker.closest('.header-overflow') : null
+  const picks = [near && near.querySelector('.header-overflow-toggle'), ...document.querySelectorAll('.neo-ws-gear, .header-actions [aria-keyshortcuts=","], .header-overflow-toggle')]
+  return picks.find(shown) || null
 }
 
 function paintScheme(el) {
