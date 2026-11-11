@@ -209,7 +209,9 @@ function youSection(api) {
 }
 
 // ── Your team ───────────────────────────────────────────────
-function face(person, px = 28) {
+// 30px: the smallest disc whose initials (.4 of it) clear the 12px type floor.
+const FACE_PX = 30
+function face(person, px = FACE_PX) {
   const bg = W.colorFor(person)
   return h('span', { class: 'neo-ws-face', title: W.str(person.name, 120), style: { '--face': bg, '--face-ink': W.inkOn(bg), '--face-size': `${px}px` }, 'aria-hidden': 'true', text: W.initials(person.name) })
 }
@@ -297,7 +299,7 @@ function teamCards(ws) {
   const out = []
   const byId = new Map(ws.people.map((p) => [p.id, p]))
   const me = ws.me && ws.me.person ? byId.get(ws.me.person) : null
-  if (me) out.push(h('p', { class: 'neo-ws-me' }, face(me, 24), h('span', { text: `You are ${W.str(me.name, 120)}` })))
+  if (me) out.push(h('p', { class: 'neo-ws-me' }, face(me), h('span', { text: `You are ${W.str(me.name, 120)}` })))
   if (ws.teams.length) out.push(h('ul', { class: 'neo-ws-teams' }, ws.teams.slice(0, 12).map((team) => teamCard(team, byId))))
   else out.push(h('p', { class: 'neo-ws-note', text: `${ws.people.length} ${ws.people.length === 1 ? 'person' : 'people'}, no teams yet.` }))
   if (ws.teams.length > 12) out.push(h('p', { class: 'neo-ws-note', text: `and ${ws.teams.length - 12} more teams in your workspace.` }))

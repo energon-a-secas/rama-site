@@ -298,12 +298,14 @@ input.neo-ws-input { height: 44px; }
   display: inline-grid;
   place-items: center;
   flex: none;
-  width: var(--face-size, 28px);
-  height: var(--face-size, 28px);
+  width: var(--face-size, 30px);
+  height: var(--face-size, 30px);
   border-radius: 50%;
   background: var(--face, #475569);
   color: var(--face-ink, #fff);
-  font-size: calc(var(--face-size, 28px) * .4);
+  /* Initials are reading text, so they keep the 12px floor (queue #154); the
+     sheet draws discs at 30px so .4 of the disc is never under it. */
+  font-size: max(12px, calc(var(--face-size, 30px) * .4));
   font-weight: 650;
   line-height: 1;
 }
