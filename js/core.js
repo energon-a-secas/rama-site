@@ -159,10 +159,11 @@ export const WORK_DAY = Object.freeze({ h: [540, 1080], d: '12345' })
 /**
  * Where someone's day is, by the visitor's working day (`work`: { h: [start,
  * end] in minutes, d: ISO weekday digits }, the Workspace settings): work
- * (inside those hours on a work day), night (22 to 7, widened to hold the
- * working hours), weekend (a day off, awake), edge (a work day's hours either
- * side of work), or none without a clock. Night comes before a day off, so a
- * weekend view still shows who is asleep.
+ * (inside those hours on a work day), night (22 to 7; on a work day widened
+ * to hold the working hours, never on a day off), weekend (a day off, awake),
+ * edge (a work day's hours either side of work), or none without a clock.
+ * Night comes before a day off, so a weekend view still shows who is asleep,
+ * even for a visitor whose working day covers all 24 hours.
  */
 export function dayPart(clock, work = WORK_DAY) {
   if (!clock) return 'none'
@@ -171,7 +172,8 @@ export function dayPart(clock, work = WORK_DAY) {
   const min = clock.hour * 60
   const workday = d.includes(String(clock.day || 7))
   if (workday && min >= h[0] && min < h[1]) return 'work'
-  if (min < Math.min(420, h[0]) || min >= Math.max(1320, h[1])) return 'night'
+  const [dawn, dusk] = workday ? [Math.min(420, h[0]), Math.max(1320, h[1])] : [420, 1320]
+  if (min < dawn || min >= dusk) return 'night'
   return workday ? 'edge' : 'weekend'
 }
 

@@ -249,6 +249,16 @@ describe('dayPart with the visitor\'s working day', () => {
     assert.equal(dayPart({ hour: 4.5, day: 3 }, early), 'night')
     assert.equal(dayPart({ hour: 23, day: 3 }, { h: [600, 1410], d: '12345' }), 'work')
   })
+
+  test('the widening holds on work days only: a day off keeps the 22 to 7 night', () => {
+    const allDay = { h: [0, 1440], d: '12345' }
+    assert.equal(dayPart({ hour: 3, day: 3 }, allDay), 'work')
+    assert.equal(dayPart({ hour: 3, day: 6 }, allDay), 'night')
+    assert.equal(dayPart({ hour: 23, day: 0 }, allDay), 'night')
+    assert.equal(dayPart({ hour: 12, day: 6 }, allDay), 'weekend')
+    assert.equal(dayPart({ hour: 3, day: 6 }, { h: [300, 780], d: '12345' }), 'night') // 03:00 on a Saturday
+    assert.equal(dayPart({ hour: 6, day: 6 }, { h: [300, 780], d: '12345' }), 'night') // the early widening is not carried over
+  })
 })
 
 describe('relativeTo and hourCycleOf', () => {

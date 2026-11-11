@@ -8,9 +8,10 @@
 // taken and stripped there first.
 
 import { NeoWorkspace } from './neorgon-workspace.js'
-import { colorFor, inkOn, initials } from './neorgon-workspace-core.js'
+import { initials } from './neorgon-workspace-core.js'
+import { hueOf } from './people.js'
 import { state, ui, person, refreshMe } from './state.js'
-import { toWorkspace, meFromWorkspace, ramaPrefs, scopeSize, hasTeam, PEOPLE_MAX } from './ws-adapter.js'
+import { toWorkspace, meFromWorkspace, ramaPrefs, scopeSize, scopePeople, hasTeam, PEOPLE_MAX } from './ws-adapter.js'
 import { showToast } from './utils.js'
 
 let ws = null
@@ -74,10 +75,10 @@ const h = (tag, attrs = {}, ...kids) => {
   return el
 }
 
-/** A saved person as the workspace will draw them: the kit's colour from the workspace id, the kit's initials. */
-function face(x) {
-  const bg = colorFor(x)
-  return h('span', { class: 'ws-face', style: `background:${bg};color:${inkOn(bg)}`, 'aria-hidden': 'true', text: initials(x.name) })
+/** A person in the preview, drawn as the chart draws them (their division's hue), so one person has one colour on this page. */
+function face(id) {
+  const p = person(id)
+  return p ? h('span', { class: 'ws-face', style: `--hue:${hueOf(id)}`, 'aria-hidden': 'true', text: initials(p.name) }) : null
 }
 
 function renderSection(box) {
@@ -85,7 +86,7 @@ function renderSection(box) {
   if (!ix) { box.append(h('p', { class: 'ws-note', text: 'Open an org first, then save its people here.' })); return }
   const lead = teamLead()
   if (!lead && scope === 'team') scope = 'org'
-  const radios = h('fieldset', { class: 'ws-scope' }, h('legend', { text: 'What "Save this team" sends' }))
+  const radios = h('fieldset', { class: 'ws-scope' }, h('legend', { text: 'What "Save to your workspace" sends' }))
   const choice = (value, text, disabled) => {
     const input = h('input', { type: 'radio', name: 'ws-scope', value })
     input.checked = scope === value
@@ -104,7 +105,7 @@ function renderSection(box) {
     const n = payload.people.length
     const left = scope === 'org' ? scopeSize(ix, 'org') - n : 0
     preview.replaceChildren(
-      h('p', { class: 'ws-faces' }, payload.people.slice(0, 8).map(face)),
+      h('p', { class: 'ws-faces' }, scopePeople(ix, scope === 'org' ? 'org' : teamLead()).slice(0, 8).map(face)),
       h('p', { class: 'ws-note', text: `${n} ${n === 1 ? 'person' : 'people'} and ${payload.teams.length} ${payload.teams.length === 1 ? 'team' : 'teams'}. Your workspace shows you a review before anything is saved, and saving never deletes anyone.${left > 0 ? ` It keeps ${PEOPLE_MAX} people, so ${left} are left out.` : ''}` }),
     )
   }
@@ -124,7 +125,7 @@ export function startWorkspace(onChange) {
     ws = NeoWorkspace.init({
       tool: 'rama',
       name: 'Rama',
-      actions: { save: { label: 'Save this team to your workspace', payload: () => payloadFor() } },
+      actions: { save: { label: 'Save to your workspace', payload: () => payloadFor() } },
       section: {
         title: 'Rama',
         render: renderSection,

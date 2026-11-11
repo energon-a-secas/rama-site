@@ -66,7 +66,7 @@ function lineTeam(ix, managerId, ids) {
 }
 
 /**
- * The payload "Save this team to your workspace" sends.
+ * The payload "Save to your workspace" sends.
  * scope: a manager's id (them and their direct reports, as `<name>'s team`) or
  * 'org' (everyone, the document's teams, and one reporting-line team per
  * manager, top first, up to the workspace's 100 teams). meId: the visitor's

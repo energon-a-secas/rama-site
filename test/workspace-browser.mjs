@@ -71,6 +71,19 @@ async function go(page, url) {
 }
 
 let v = 0
+
+/** Reading text under 12px in the page and an open sheet: decorations and hidden text aside. */
+const smallText = (page) => page.evaluate(() => {
+  const out = []
+  for (const el of document.querySelectorAll('main *, .header-bar *, .neo-ws-sheet *')) {
+    if (el.closest('svg, .avatar, [aria-hidden="true"], .caret')) continue
+    const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())
+    if (!own || !el.getClientRects().length || !el.getBoundingClientRect().width) continue
+    const px = parseFloat(getComputedStyle(el).fontSize)
+    if (px < 12) out.push(`${el.className || el.tagName} ${px}`)
+  }
+  return out
+})
 async function context(browser, { width = 1440, height = 900 } = {}) {
   const ctx = await browser.newContext({ viewport: { width, height } })
   await ctx.addInitScript((frame) => {
@@ -116,8 +129,8 @@ for (const eng of engines) {
       await sheet.waitFor({ state: 'visible', timeout: 4000 }).catch(() => {})
       check(eng, ', opens the Settings sheet', await sheet.evaluate((d) => d.open).catch(() => false))
       const section = await sheet.textContent().catch(() => '')
-      check(eng, 'the sheet carries Rama\'s section and its save action', /What "Save this team" sends/.test(section) && /Save this team to your workspace/.test(section))
-      check(eng, 'the saved people are drawn with the kit\'s faces', await page.locator('.ws-face').count() > 0)
+      check(eng, 'the sheet carries Rama\'s section and its save action', /What "Save to your workspace" sends/.test(section) && /Save to your workspace/.test(section))
+      check(eng, 'the saved people are drawn in their chart hues', await page.locator('.ws-face').count() > 0 && await page.locator('.ws-face').first().evaluate((el) => /^\d/.test(el.style.getPropertyValue('--hue'))))
       await page.keyboard.press('Escape')
       await page.waitForTimeout(200)
       check(eng, 'Escape closes it and focus goes back', !(await sheet.evaluate((d) => d.open).catch(() => true)) && await page.evaluate(() => document.activeElement && document.activeElement !== document.body))
@@ -215,18 +228,43 @@ for (const eng of engines) {
       const box = await page.locator('#handMenu').boundingBox()
       check(eng, 'its menu fits the screen', !!box && box.x >= 0 && box.x + box.width <= 390, JSON.stringify(box))
       await page.keyboard.press('Escape')
-      const small = await page.evaluate(() => {
-        const out = []
-        for (const el of document.querySelectorAll('main *, .neo-ws-sheet *')) {
-          if (el.closest('svg, .avatar, [aria-hidden="true"], .caret')) continue
-          const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())
-          if (!own || !el.getClientRects().length) continue
-          const px = parseFloat(getComputedStyle(el).fontSize)
-          if (px < 12) out.push(`${el.className || el.tagName} ${px}`)
-        }
-        return out
-      })
+      const small = await smallText(page)
       check(eng, 'no reading text under 12px', small.length === 0, small.slice(0, 5).join(', '))
+      await ctx.close()
+    }
+
+    // 6. At 1440 with the profile panel open: its headings, the cards' counts and the kbd hints are 12px or more.
+    {
+      const ctx = await context(browser)
+      const { page } = await openRama(ctx, '&at=noor-haddad')
+      const opened = await page.locator('.panel__section h3').count()
+      const small = await smallText(page)
+      check(eng, 'no reading text under 12px at 1440, panel open', opened > 0 && small.length === 0, `${opened} panel headings; ${small.slice(0, 5).join(', ')}`)
+      const want = ['searchBtn', 'meBtn', 'orgBtn', 'handBtn', 'settingsBtn']
+      const seen = {}
+      await page.locator('.header-title-link').focus()
+      for (let i = 0; i < 10 && Object.keys(seen).length < want.length; i++) {
+        await page.keyboard.press(eng === 'webkit' ? 'Alt+Tab' : 'Tab')
+        const [id, ring] = await page.evaluate(() => [document.activeElement.id, getComputedStyle(document.activeElement).outlineColor])
+        if (want.includes(id)) seen[id] = ring
+      }
+      const rings = want.map((id) => seen[id] || `${id} not reached`)
+      check(eng, 'one focus ring across the header actions', new Set(rings).size === 1, rings.join(' | '))
+      await ctx.close()
+    }
+
+    // 7. The phone header: the kept controls share one height and never lie on top of each other.
+    for (const width of [390, 360, 320]) {
+      const ctx = await context(browser, { width, height: 780 })
+      const { page } = await openRama(ctx)
+      const row = await page.evaluate(() => [...document.querySelectorAll('.header-title-link, .header-actions > button, .header-actions > .menu-wrap > button, .header-overflow-toggle, .neo-auth button, .neo-auth a, .header-home')]
+        .map((el) => ({ el: el.id || el.className.split(' ')[0], r: el.getBoundingClientRect() }))
+        .filter((x) => x.r.width && x.r.top < 80)
+        .map((x) => ({ el: x.el, l: x.r.left, rt: x.r.right, h: Math.round(x.r.height) }))
+        .sort((a, b) => a.l - b.l))
+      const clash = row.slice(1).filter((x, i) => x.l < row[i].rt - 0.5).map((x) => x.el)
+      const heights = new Set(row.filter((x) => x.el !== 'header-title-link').map((x) => x.h))
+      check(eng, `the phone header fits at ${width}`, clash.length === 0 && row.at(-1).rt <= width && heights.size === 1, `${row.map((x) => `${x.el} ${Math.round(x.l)}-${Math.round(x.rt)} h${x.h}`).join(', ')}`)
       await ctx.close()
     }
   } catch (err) {
