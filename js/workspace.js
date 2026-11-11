@@ -116,11 +116,28 @@ function renderSection(box) {
 }
 
 /**
+ * index.html moves a pick's answer (#neo-ws=...) out of the address before the
+ * Header Kit's analytics can read it. Put it back for the one synchronous
+ * moment the client needs: NeoWorkspace.init reads it, checks it against this
+ * tab's pick marker and strips it again before any other script runs. As in
+ * Reparto and Floorplan.
+ */
+function holdBackAnswer() {
+  const held = window.__neoWsAnswer
+  try { delete window.__neoWsAnswer } catch { window.__neoWsAnswer = undefined }
+  if (typeof held !== 'string' || !/^#neo-ws=[^\s]*$/.test(held) || held.length > 410000) return
+  try {
+    if (location.hash === '' || location.hash === '#') history.replaceState(history.state, '', location.pathname + location.search + held)
+  } catch { /* sandboxed: the answer is lost, the team still comes from the frame */ }
+}
+
+/**
  * Start the client. onChange(kind) redraws: 'prefs' for new settings, 'me'
  * when the workspace names a different card.
  */
 export function startWorkspace(onChange) {
   redraw = typeof onChange === 'function' ? onChange : redraw
+  holdBackAnswer()
   try {
     ws = NeoWorkspace.init({
       tool: 'rama',
