@@ -255,13 +255,17 @@ function teamSection(api) {
   }
   if (sv) {
     const b = h('button', { type: 'button', class: 'neo-ws-btn', text: label(sv.label, 'Save to your workspace') })
+    // Not disabled while it waits: the unreachable-workspace warning hands focus back to this button.
+    let busy = false
     b.addEventListener('click', async () => {
+      if (busy) return
       let payload = null
       try { payload = sv.payload() } catch (err) { console.error('[NeoWorkspace] save payload', err) }
-      b.disabled = true
-      const res = await api.save(payload)
-      b.disabled = false
+      busy = true
+      const res = await api.save(payload, { invoker: b }).finally(() => { busy = false })
       if (res.ok) return
+      if (res.reason === 'stayed') { notice.replaceChildren(); return }
+      if (res.reason === 'downloaded') { notice.replaceChildren(h('p', { text: 'Saved neorgon-workspace.json. Import it on your workspace page.' })); return }
       notice.replaceChildren(h('p', { text: res.reason === 'too-long' ? 'Too many people for a link. Download them as a file, then import it on your workspace page.' : 'Nothing to save from here yet.' }))
       if (res.reason === 'too-long') {
         const dl = h('button', { type: 'button', class: 'neo-ws-btn', text: 'Download neorgon-workspace.json' })
@@ -321,6 +325,59 @@ function keySection(api) {
   box.addEventListener('change', () => api.setKeyOff(!box.checked))
   return h('section', { class: 'neo-ws-section neo-ws-keys' },
     h('label', { class: 'neo-ws-check' }, box, h('span', { text: 'Open Settings with the , key' })))
+}
+
+// ── The warning before a save that may not arrive ───────────
+const WARN_TEXT = {
+  online: (name) => `${name} could not reach your Neorgon Workspace page. Saving opens that page for a review, so if it does not load you land on an error page and come back with Back. You can also download the people as a file and import it there later.`,
+  offline: () => 'This browser is offline. Saving opens your Neorgon Workspace page for a review, which cannot load until you are back online. You can download the people as a file and import it there later.',
+}
+let warn = null
+
+function warnShell() {
+  if (warn && warn.isConnected) return warn
+  const title = h('h2', { class: 'neo-ws-title', id: uid('warn-title'), text: 'Your workspace did not answer' })
+  const text = h('p', { class: 'neo-ws-warn-body', id: uid('warn-body') })
+  const btn = (choice, label, primary) => h('button', { type: 'button', class: `neo-ws-btn${primary ? ' neo-ws-primary' : ''}`, 'data-choice': choice, text: label })
+  warn = h('dialog', { class: 'neo-ws-warn', 'aria-labelledby': title.id, 'aria-describedby': text.id },
+    title, text,
+    h('div', { class: 'neo-ws-actions' }, btn('stay', 'Stay here'), btn('file', 'Download the file'), btn('go', 'Open it anyway', true)))
+  warn.neoParts = { text }
+  warn.addEventListener('click', (event) => {
+    const choice = event.target.closest && event.target.closest('[data-choice]')
+    if (choice) warn.close(choice.dataset.choice)
+  })
+  // Escape here closes the warning only, never the Settings sheet under it.
+  warn.addEventListener('keydown', (event) => { if (event.key === 'Escape') event.stopPropagation() })
+  document.body.append(warn)
+  return warn
+}
+
+/**
+ * Asks before a save leaves for a Workspace page that may not load (offline, or the
+ * frame never answered). Resolves 'stay', 'file' or 'go'; Escape is 'stay'. Focus
+ * starts on Stay here and goes back to `invoker`, or the nearest opener on screen.
+ */
+export function askBeforeSave(api, { online = true, invoker = null } = {}) {
+  const el = warnShell()
+  if (el.open) return Promise.resolve('stay')   // one question at a time; the first is still waiting
+  el.neoParts.text.textContent = online ? WARN_TEXT.online(label(api && api.name, 'This tool')) : WARN_TEXT.offline()
+  el.returnValue = ''
+  paintScheme(el)
+  return new Promise((resolve) => {
+    el.addEventListener('close', () => {
+      const choice = ['stay', 'file', 'go'].includes(el.returnValue) ? el.returnValue : 'stay'
+      // WebKit leaves focus on the dialog under this one (the sheet), not on what opened the warning.
+      const active = document.activeElement
+      if (!active || active === document.body || active === document.documentElement || el.contains(active) || active.localName === 'dialog') {
+        const target = returnTarget(invoker)
+        if (target) target.focus({ preventScroll: true })
+      }
+      resolve(choice)
+    }, { once: true })
+    el.showModal()
+    el.querySelector('[data-choice="stay"]').focus()
+  })
 }
 
 // ── The team banner ─────────────────────────────────────────

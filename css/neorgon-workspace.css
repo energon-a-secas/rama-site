@@ -11,6 +11,7 @@
    ══════════════════════════════════════════════════════════════ */
 
 .neo-ws-sheet,
+.neo-ws-warn,
 .neo-ws-banner {
   --ws-accent: var(--neo-ws-accent, var(--accent, var(--header-accent, #e879f9)));
   --ws-bg: var(--neo-ws-bg, var(--bg, #0b0d14));
@@ -57,7 +58,7 @@
 }
 
 /* ── The sheet ───────────────────────────────────────────────── */
-body:has(.neo-ws-sheet[open]) { overflow: hidden; }
+body:has(.neo-ws-sheet[open], .neo-ws-warn[open]) { overflow: hidden; }
 
 .neo-ws-sheet {
   box-sizing: border-box;
@@ -260,6 +261,7 @@ input.neo-ws-input { height: 44px; }
 .neo-ws-notice p { margin: 0; }
 
 .neo-ws-sheet :is(.neo-ws-btn, .neo-ws-close, .neo-ws-input, .neo-ws-check input):focus-visible,
+.neo-ws-warn .neo-ws-btn:focus-visible,
 .neo-ws-banner :is(.neo-ws-btn, .neo-ws-close):focus-visible {
   outline: 2px solid var(--ws-accent);
   outline-offset: 2px;
@@ -321,6 +323,35 @@ input.neo-ws-input { height: 44px; }
 }
 .neo-ws-foot p { margin: 0; }
 
+/* ── The warning before a save that may not arrive ────────────
+   A small modal of its own, above the sheet when the sheet is open. */
+.neo-ws-warn {
+  box-sizing: border-box;
+  width: min(440px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 20px 20px 18px;
+  border: 1px solid var(--ws-border);
+  border-top: 3px solid var(--ws-accent);
+  border-radius: var(--ws-radius);
+  background: var(--ws-surface);
+  color: var(--ws-text);
+  font-family: var(--font, inherit);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, .5);
+  overflow: auto;
+  color-scheme: dark;
+}
+.neo-ws-warn[data-scheme="light"] {
+  --ws-surface: color-mix(in oklab, var(--ws-bg) 97%, var(--ws-text) 3%);
+  box-shadow: 0 28px 70px rgba(15, 23, 42, .22);
+  color-scheme: light;
+}
+.neo-ws-warn::backdrop { background: rgba(3, 5, 14, .62); }
+.neo-ws-warn[data-scheme="light"]::backdrop { background: rgba(15, 23, 42, .35); }
+.neo-ws-warn-body { margin: 8px 0 0; font-size: .875rem; line-height: 1.55; color: var(--ws-text-dim); }
+.neo-ws-warn .neo-ws-actions { margin-top: 16px; }
+
 /* ── The team banner (in the tool's page) ────────────────────── */
 .neo-ws-banner {
   display: flex;
@@ -348,6 +379,7 @@ input.neo-ws-input { height: 44px; }
     border-radius: 18px 18px 0 0;
   }
   .neo-ws-grid { grid-template-columns: minmax(0, 1fr); }
+  .neo-ws-warn .neo-ws-actions { display: grid; }
   .neo-ws-foot { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
 }
 
@@ -366,7 +398,7 @@ input.neo-ws-input { height: 44px; }
 @keyframes neo-ws-fade { from { opacity: 0; } }
 
 @media (forced-colors: active) {
-  .neo-ws-sheet { border: 1px solid CanvasText; }
+  .neo-ws-sheet, .neo-ws-warn { border: 1px solid CanvasText; }
   .neo-ws-sheet::before { background: Highlight; }
   .neo-ws-day input:checked + span { border: 2px solid Highlight; }
   .neo-ws-face { border: 1px solid CanvasText; }

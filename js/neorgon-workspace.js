@@ -20,7 +20,7 @@
  */
 import * as W from './neorgon-workspace-core.js'
 import { createStore, safeGet, safeSet } from './neorgon-persist.js'
-import { openSheet, isSheetOpen, renderBanner } from './neorgon-workspace-sheet.js'
+import { openSheet, isSheetOpen, renderBanner, askBeforeSave } from './neorgon-workspace-sheet.js'
 
 const HASH_KEY = 'neo-ws:return-hash'   // sessionStorage: { h, t, k }, the tool's own fragment across a round trip, and which trip
 const HASH_TTL = 30 * 60 * 1000         // a save's way back carries no fragment; past this, a bare visit is a new one
@@ -245,14 +245,25 @@ function create(opts) {
     session('set', JSON.stringify({ h: hash && hash.length <= HASH_MAX ? hash : '', t: Date.now(), k: kind }))
   }
 
-  /** Sends the visitor to the Workspace page's review. { ok } or { ok: false, reason: 'no-workspace' | 'bad-payload' | 'too-long' }. */
-  async function save(payload) {
+  /**
+   * Sends the visitor to the Workspace page's review. When the browser is offline
+   * or the frame never answered, it first asks (Stay here, Download the file, Open
+   * it anyway); `invoker` takes focus back when that warning closes.
+   * { ok } or { ok: false, reason: 'no-workspace' | 'bad-payload' | 'too-long' | 'stayed' | 'downloaded' }.
+   */
+  async function save(payload, { invoker = null } = {}) {
     if (!origin) return { ok: false, reason: 'no-workspace' }
     if (!W.isMap(payload)) return { ok: false, reason: 'bad-payload' }
     let text
     try { text = await W.encodePayload(payload) } catch { return { ok: false, reason: 'bad-payload' } }
     const link = W.saveLink({ origin, payload: text, tool, returnUrl: location.href })
     if (!link) return { ok: false, reason: W.isPayloadText(text) ? 'too-long' : 'bad-payload' }
+    const online = typeof navigator === 'undefined' || navigator.onLine !== false
+    if (W.saveUnsure({ online, frame: frame.state }) && typeof document !== 'undefined') {
+      const choice = await askBeforeSave(api, { online, invoker: invoker || document.activeElement })
+      if (choice === 'file') return { ok: false, reason: download(payload) ? 'downloaded' : 'stayed' }
+      if (choice !== 'go') return { ok: false, reason: 'stayed' }
+    }
     rememberTrip('save')
     navigate(link)
     return { ok: true }
