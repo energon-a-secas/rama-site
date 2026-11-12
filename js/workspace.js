@@ -10,9 +10,8 @@
 import { NeoWorkspace } from './neorgon-workspace.js'
 import { initials, colorFor, inkOn } from './neorgon-workspace-core.js'
 import { state, ui, person, refreshMe } from './state.js'
-import { toWorkspace, meFromWorkspace, ramaPrefs, scopeSize, hasTeam, saveUnsure, PEOPLE_MAX } from './ws-adapter.js'
+import { toWorkspace, meFromWorkspace, ramaPrefs, scopeSize, hasTeam, PEOPLE_MAX } from './ws-adapter.js'
 import { showToast } from './utils.js'
-import { openDialog, bindDialog } from './dialogs.js'
 
 let ws = null
 let redraw = () => {}
@@ -42,55 +41,16 @@ export async function saveToWorkspace(which) {
   if (!ws) return
   const payload = payloadFor(which)
   if (!payload) return showToast('Nobody to save from this card yet', { duration: 3200 })
-  const online = typeof navigator === 'undefined' || navigator.onLine !== false
-  if (saveUnsure({ online, frame: ws.team().frame })) return warnUnreachable(payload, online)
-  return go(payload)
-}
-
-async function go(payload) {
-  const res = await ws.save(payload)
-  if (res.ok) return
-  if (res.reason === 'too-long') {
+  // The kit asks first when the workspace is unreachable (offline, or the frame never answered):
+  // Stay here, Download the file, or Open it anyway. Focus goes back to Hand off.
+  const res = await ws.save(payload, { invoker: document.getElementById('handBtn') })
+  if (res.ok || res.reason === 'stayed') return
+  if (res.reason === 'downloaded') {
+    showToast('Saved neorgon-workspace.json. Import it on your workspace page', { duration: 5200 })
+  } else if (res.reason === 'too-long') {
     ws.download(payload)
     showToast('Too many people for a link: saved neorgon-workspace.json. Import it on your workspace page', { duration: 5200 })
   } else showToast('Your workspace is not reachable from here', { duration: 3200 })
-}
-
-// ── The warning before a save that would leave for a page that may not load ──
-let warn = null
-
-function warnUnreachable(payload, online) {
-  if (!warn) {
-    const btn = (cls, label, act) => h('button', { type: 'button', class: `btn ${cls}`, 'data-ws-warn': act, text: label })
-    warn = h('dialog', { class: 'dialog', id: 'wsWarnDialog', 'aria-labelledby': 'wsWarnTitle', 'aria-describedby': 'wsWarnBody' },
-      h('div', { class: 'dialog__header' }, h('h2', { id: 'wsWarnTitle', text: 'Your workspace did not answer' })),
-      h('div', { class: 'dialog__body' }, h('p', { id: 'wsWarnBody' })),
-      h('div', { class: 'dialog__footer' },
-        btn('btn--secondary', 'Stay here', 'stay'),
-        btn('btn--secondary', 'Download the file', 'file'),
-        btn('btn--primary', 'Open it anyway', 'go')))
-    document.body.append(warn)
-    bindDialog(warn, document.getElementById('handBtn'))
-    warn.addEventListener('click', (event) => {
-      const act = event.target.closest('[data-ws-warn]')?.dataset.wsWarn
-      if (!act) return
-      const held = warn.payload
-      warn.payload = null
-      warn.close()
-      if (act === 'go' && held) go(held)
-      else if (act === 'file' && held) {
-        ws.download(held)
-        showToast('Saved neorgon-workspace.json. Import it on your workspace page', { duration: 5200 })
-      }
-    })
-    warn.addEventListener('close', () => { warn.payload = null })
-  }
-  warn.payload = payload
-  warn.querySelector('#wsWarnBody').textContent = online
-    ? 'Rama could not reach your Neorgon Workspace page. Saving opens that page for a review, so if it does not load you land on an error page and come back with Back. You can also download the people as a file and import it there later.'
-    : 'This browser is offline. Saving opens your Neorgon Workspace page for a review, which cannot load until you are back online. You can download the people as a file and import it there later.'
-  openDialog(warn, document.getElementById('handBtn'))
-  warn.querySelector('[data-ws-warn="stay"]').focus()
 }
 
 export const openSettings = (invoker) => ws && ws.open({ invoker })

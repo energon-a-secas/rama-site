@@ -134,11 +134,3 @@ export function ramaPrefs(prefs) {
 }
 
 export { slug, ORG_ROOT }
-
-/**
- * Whether "Save to your workspace" should warn before it leaves: the browser
- * says it is offline, or the workspace frame never answered (neorgon.com
- * unreachable). A frame still looking ('pending') does not count, nor does one
- * that answered without sharing (Safari): the page itself is reachable there.
- */
-export const saveUnsure = ({ online = true, frame = 'pending' } = {}) => online === false || frame === 'none'

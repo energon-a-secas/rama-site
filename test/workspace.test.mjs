@@ -13,7 +13,7 @@ import { normalizeOrg } from '../js/schema.js'
 import { indexOrg } from '../js/tree.js'
 import { dayPart, relativeTo, hourCycleOf, offsetMinutes, WORK_DAY } from '../js/core.js'
 import { resolveMe } from '../js/me.js'
-import { wsId, toWorkspace, scopePeople, hasTeam, meFromWorkspace, ramaPrefs, saveUnsure, TOOL } from '../js/ws-adapter.js'
+import { wsId, toWorkspace, scopePeople, hasTeam, meFromWorkspace, ramaPrefs, TOOL } from '../js/ws-adapter.js'
 import * as W from '../js/neorgon-workspace-core.js'
 
 const build = (doc) => indexOrg(normalizeOrg(doc).model)
@@ -284,24 +284,22 @@ describe('relativeTo and hourCycleOf', () => {
   })
 })
 
-describe('saveUnsure: when a save warns before it leaves', () => {
-  test('offline warns, whatever the frame says', () => {
-    for (const frame of ['pending', 'ready', 'none']) assert.equal(saveUnsure({ online: false, frame }), true)
-  })
-  test('a frame that never answered warns', () => {
-    assert.equal(saveUnsure({ online: true, frame: 'none' }), true)
-  })
-  test('a frame still looking, or one that answered, goes straight through', () => {
-    assert.equal(saveUnsure({ online: true, frame: 'pending' }), false)
-    assert.equal(saveUnsure({ online: true, frame: 'ready' }), false)
-    assert.equal(saveUnsure(), false)
+describe('saveUnsure: the kit\'s check, which Rama\'s save now goes through', () => {
+  test('offline or a frame that never answered warns; a frame still looking or one that answered does not', () => {
+    for (const frame of ['pending', 'ready', 'none']) assert.equal(W.saveUnsure({ online: false, frame }), true)
+    assert.equal(W.saveUnsure({ online: true, frame: 'none' }), true)
+    assert.equal(W.saveUnsure({ online: true, frame: 'pending' }), false)
+    assert.equal(W.saveUnsure({ online: true, frame: 'ready' }), false)
   })
 })
 
 describe('the wiring module', () => {
   const src = readFileSync(join(ROOT, 'js/workspace.js'), 'utf8')
-  test('a save asks saveUnsure before it navigates', () => {
-    assert.match(src, /saveUnsure\(\{ online, frame: ws\.team\(\)\.frame \}\)/)
+  test('a save leaves the unreachable-workspace warning to the kit, focus back on Hand off', () => {
+    assert.match(src, /ws\.save\(payload, \{ invoker: document\.getElementById\('handBtn'\) \}\)/)
+    assert.match(src, /res\.reason === 'stayed'/)
+    assert.match(src, /res\.reason === 'downloaded'/)
+    assert.doesNotMatch(src, /saveUnsure|wsWarnDialog|data-ws-warn/)
   })
 
   test('the preview faces use the kit\'s colorFor, inkOn and initials, not the chart\'s hue', () => {
