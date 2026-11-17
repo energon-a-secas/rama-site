@@ -1,5 +1,5 @@
 /**
- * NeoKeys — assembly.
+ * NeoKeys: assembly.
  *
  * The one file a site imports. Registers the kit's own shortcuts, installs the
  * single document listener, and exposes window.NeoKeys for sites that are not
@@ -22,8 +22,7 @@ let started = false;
  * @param {object}  [opts]
  * @param {boolean|'full'} [opts.chromeToggle]  bind H (default: the meta tag
  *   decides; 'full', or meta content "full", also hides the footer)
- * @param {boolean} [opts.fleetSwitcher] bind G (default: only when a source is given)
- * @param {string}  [opts.fleetSource]   URL of the site list for G (or meta neo-fleet-source)
+ * @param {boolean} [opts.fleetSwitcher] bind G (default on; meta neo-fleet-switcher="off" turns it off)
  * @param {string}  [opts.typingSelector] extra selector treated as a text surface
  * @param {Function}[opts.onKey]         called with every dispatch verdict
  */
@@ -35,13 +34,13 @@ export function init(opts = {}) {
   const chromeMeta = meta('neo-chrome-toggle');
   const wantChrome = opts.chromeToggle ?? (chromeMeta === 'on' || chromeMeta === 'full');
   const chromeFull = opts.chromeToggle === 'full' || (opts.chromeToggle == null && chromeMeta === 'full');
-  /* G without a site list opens onto "Site list unavailable", which looks
-     broken rather than unconfigured. It stays off until a source is named,
-     in JS or in <meta name="neo-fleet-source">. */
-  const fleetMeta = meta('neo-fleet-source');
-  const wantFleet = opts.fleetSwitcher ?? !!(opts.fleetSource || fleetMeta);
-  if (opts.fleetSource) fleet.setSource(opts.fleetSource);
-  else if (fleetMeta) fleet.setSource(fleetMeta);
+  /* G is on wherever the kit is vendored: the list ships beside it
+     (fleet-data.js, generated from the registry), so the switcher never
+     opens onto nothing. A site turns it off with
+     <meta name="neo-fleet-switcher" content="off"> or fleetSwitcher: false.
+     The old neo-fleet-source meta and fleetSource option named a fetched
+     list; they are accepted and ignored. */
+  const wantFleet = opts.fleetSwitcher ?? (meta('neo-fleet-switcher') !== 'off');
   if (opts.typingSelector) core.setTypingSelector(opts.typingSelector);
 
   const kit = [{
@@ -68,8 +67,8 @@ export function init(opts = {}) {
     kit.push({
       key: 'g',
       id: 'kit:fleet',
-      label: 'Go to a site',
-      hint: 'Jump anywhere in the fleet',
+      label: 'Jump to any tool',
+      hint: 'Every Neorgon tool, by category',
       group: 'Fleet',
       run: () => fleet.toggle(),
     });
